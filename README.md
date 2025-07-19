@@ -1,4 +1,4 @@
-# WhiteURLScan网站信息获取工具
+# WhiteURLScan网站信息扫描工具
 
 ## 项目简介
 

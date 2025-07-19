@@ -352,6 +352,7 @@ class URLConcatenator(DebugMixin):
 class URLMatcher(DebugMixin):
     def __init__(self, config, scanner=None):
         self.config = config
+        self.debug_mode = config.debug_mode  # 设置debug_mode属性
         self.concatenator = URLConcatenator(config.debug_mode)
         self.scanner = scanner  # 新增：可选scanner实例
     
@@ -407,13 +408,23 @@ class URLMatcher(DebugMixin):
     
     def extract_urls(self, content, base_url):
         """从内容中提取URL - 全新匹配逻辑，专注于路径字符串"""
-        urls = set()
-        
-        if self.config.debug_mode:
-            self._debug_print(f"开始从内容提取URL: base_url={base_url}")
-        
-        # 处理文本内容
-        text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
+        try:
+            urls = set()
+            
+            if self.config.debug_mode:
+                self._debug_print(f"开始从内容提取URL: base_url={base_url}")
+            
+            # 处理文本内容
+            try:
+                text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
+                text_content = str(content) if content else ""
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"初始化URL提取时出错: {type(e).__name__}: {e}")
+            return set()
         
         # 主要匹配模式：捕获引号内的路径字符串
         # 匹配形式："/path/to/resource" 或 '/path/to/resource' 或 `/path/to/resource`
@@ -519,15 +530,27 @@ class URLMatcher(DebugMixin):
         ]
         
         # 匹配主要路径模式
-        for pattern in path_patterns:
-            self._match_and_add(pattern, text_content, base_url, urls)
+        try:
+            for pattern in path_patterns:
+                self._match_and_add(pattern, text_content, base_url, urls)
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
         
         # 匹配HTML标签中的路径属性
-        for pattern in tag_patterns:
-            self._match_and_add(pattern, text_content, base_url, urls)
+        try:
+            for pattern in tag_patterns:
+                self._match_and_add(pattern, text_content, base_url, urls)
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"匹配HTML标签模式时出错: {type(e).__name__}: {e}")
         
         # 使用BeautifulSoup作为备选方案
-        self._extract_with_bs(text_content, base_url, urls)
+        try:
+            self._extract_with_bs(text_content, base_url, urls)
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"BeautifulSoup提取时出错: {type(e).__name__}: {e}")
         
         if self.config.debug_mode:
             self._debug_print(f"URL提取完成，共找到 {len(urls)} 个URL")
@@ -698,57 +721,74 @@ class SensitiveDetector(DebugMixin):
     
     def detect(self, content):
         """检测响应中的敏感信息 - 返回结构化格式"""
-        if not content:
-            if self.debug_mode:
-                self._debug_print("内容为空，跳过敏感信息检测")
-            return []
-        
-        if self.debug_mode:
-            self._debug_print("开始敏感信息检测")
-        
-        text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
-        detected = []
-        
-        for name, pattern in self.sensitive_patterns.items():
-            try:
-                matches = re.findall(pattern, text_content)
-                if matches:
-                    # 去重并获取样本
-                    unique_matches = set(matches)
-                    count = len(unique_matches)
-                    
-                    # 获取样本（最多5个）
-                    samples = list(unique_matches)
-                
-                    # 构建结构化结果
-                    detected_item = {
-                        'type': name,  # 敏感信息类型
-                        'count': count,  # 发现数量
-                        'samples': samples,  # 样本清单
-                        'total': len(unique_matches)  # 总数量
-                    }
-                
-                    detected.append(detected_item)
-                    
-                    if self.debug_mode:
-                        self._debug_print(f"发现敏感信息: {name} x{count} 个样本")
-                else:
-                    if self.debug_mode:
-                        self._debug_print(f"未发现敏感信息: {name}")
-            except re.error as e:
+        try:
+            if not content:
                 if self.debug_mode:
-                    self._debug_print(f"正则表达式错误 ({name}): {str(e)}")
-                continue  # 跳过无效的正则表达式
-        
-        if self.debug_mode:
-            self._debug_print(f"敏感信息检测完成，共发现 {len(detected)} 种敏感信息")
-        
-        return detected
+                    self._debug_print("内容为空，跳过敏感信息检测")
+                return []
+            
+            if self.debug_mode:
+                self._debug_print("开始敏感信息检测")
+            
+            try:
+                text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
+            except Exception as e:
+                if self.debug_mode:
+                    self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
+                text_content = str(content) if content else ""
+            
+            detected = []
+            
+            for name, pattern in self.sensitive_patterns.items():
+                try:
+                    matches = re.findall(pattern, text_content)
+                    if matches:
+                        # 去重并获取样本
+                        unique_matches = set(matches)
+                        count = len(unique_matches)
+                        
+                        # 获取样本（最多5个）
+                        samples = list(unique_matches)
+                    
+                        # 构建结构化结果
+                        detected_item = {
+                            'type': name,  # 敏感信息类型
+                            'count': count,  # 发现数量
+                            'samples': samples,  # 样本清单
+                            'total': len(unique_matches)  # 总数量
+                        }
+                    
+                        detected.append(detected_item)
+                        
+                        if self.debug_mode:
+                            self._debug_print(f"发现敏感信息: {name} x{count} 个样本")
+                    else:
+                        if self.debug_mode:
+                            pass # 减少输出
+                            # self._debug_print(f"未发现敏感信息: {name}")
+                except re.error as e:
+                    if self.debug_mode:
+                        self._debug_print(f"正则表达式错误 ({name}): {str(e)}")
+                    continue  # 跳过无效的正则表达式
+                except Exception as e:
+                    if self.debug_mode:
+                        self._debug_print(f"处理敏感信息模式时出错 ({name}): {type(e).__name__}: {e}")
+                    continue
+            
+            if self.debug_mode:
+                self._debug_print(f"敏感信息检测完成，共发现 {len(detected)} 种敏感信息")
+            
+            return detected
+        except Exception as e:
+            if self.debug_mode:
+                self._debug_print(f"敏感信息检测过程中出错: {type(e).__name__}: {e}")
+            return []
 
 # ====================== 输出处理模块 ======================
 class OutputHandler(DebugMixin):
     def __init__(self, config):
         self.config = config
+        self.debug_mode = config.debug_mode  # 设置debug_mode属性
         self.url_count = 0
         self.start_time = time.time()
         self.request_signature_count = {}  # 记录请求签名出现次数
@@ -765,45 +805,57 @@ class OutputHandler(DebugMixin):
     
     def _format_sensitive_data_for_csv(self, sensitive_raw):
         """格式化敏感信息数据用于CSV保存 - 返回三个字段：类型、数量、详细清单"""
-        if not sensitive_raw:
-            return "", "", ""
-        
-        sensitive_types = []
-        sensitive_counts = []
-        sensitive_details = []
-        
-        for item in sensitive_raw:
-            if isinstance(item, dict):
-                # 结构化格式
-                sensitive_type = item.get('type', '未知')
-                count = item.get('count', 0)
-                samples = item.get('samples', [])
-                
-                sensitive_types.append(sensitive_type)
-                sensitive_counts.append(str(count))
-                
-                # 详细清单：样本内容（最多显示前3个，用分号分隔）
-                if samples:
-                    # detail_samples = samples[:3]  # 最多显示3个样本
-                    detail_samples = samples  # 显示全部样本
-                    # 确保所有样本都是字符串类型
-                    detail_samples_str = [str(sample) for sample in detail_samples]
-                    detail_str = f"{sensitive_type}:{'; '.join(detail_samples_str)}"
-                    # 如果样本数量大于3，显示..., 暂不启用
-                    # if len(samples) > 3:
-                    #     detail_str += f"...(共{count}个)"
-                else:
-                    detail_str = f"{sensitive_type}:无样本"
-                
-                sensitive_details.append(detail_str)
-            else:
-                # 其他格式
-                item_str = str(item)
-                sensitive_types.append("未知类型")
-                sensitive_counts.append("1")
-                sensitive_details.append(item_str)
-        
-        return "|".join(sensitive_types), "|".join(sensitive_counts), "|".join(sensitive_details)
+        try:
+            if not sensitive_raw:
+                return "", "", ""
+            
+            sensitive_types = []
+            sensitive_counts = []
+            sensitive_details = []
+            
+            for item in sensitive_raw:
+                try:
+                    if isinstance(item, dict):
+                        # 结构化格式
+                        sensitive_type = item.get('type', '未知')
+                        count = item.get('count', 0)
+                        samples = item.get('samples', [])
+                        
+                        sensitive_types.append(sensitive_type)
+                        sensitive_counts.append(str(count))
+                        
+                        # 详细清单：样本内容（最多显示前3个，用分号分隔）
+                        if samples:
+                            # detail_samples = samples[:3]  # 最多显示3个样本
+                            detail_samples = samples  # 显示全部样本
+                            # 确保所有样本都是字符串类型
+                            detail_samples_str = [str(sample) for sample in detail_samples]
+                            detail_str = f"{sensitive_type}:{'; '.join(detail_samples_str)}"
+                            # 如果样本数量大于3，显示..., 暂不启用
+                            # if len(samples) > 3:
+                            #     detail_str += f"...(共{count}个)"
+                        else:
+                            detail_str = f"{sensitive_type}:无样本"
+                        
+                        sensitive_details.append(detail_str)
+                    else:
+                        # 其他格式
+                        item_str = str(item)
+                        sensitive_types.append("未知类型")
+                        sensitive_counts.append("1")
+                        sensitive_details.append(item_str)
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"处理敏感信息项时出错: {type(e).__name__}: {e}")
+                    sensitive_types.append("处理错误")
+                    sensitive_counts.append("0")
+                    sensitive_details.append(f"处理错误: {type(e).__name__}")
+            
+            return "|".join(sensitive_types), "|".join(sensitive_counts), "|".join(sensitive_details)
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"格式化敏感信息数据时出错: {type(e).__name__}: {e}")
+            return "格式化错误", "0", f"格式化错误: {type(e).__name__}"
     
     def get_status_color(self, status):
         """获取状态码对应的颜色"""
@@ -826,14 +878,19 @@ class OutputHandler(DebugMixin):
     
     def realtime_output(self, result):
         """彩色实时输出扫描结果"""
-        self.url_count += 1
-        elapsed_time = time.time() - self.start_time
-        
-        if self.config.debug_mode:
-            self._debug_print(f"处理扫描结果 #{self.url_count}: {result['url']}")
-        
-        if isinstance(result['status'], str) and 'Error' in result['status']:
-            result['status'] = 'Error'
+        try:
+            self.url_count += 1
+            elapsed_time = time.time() - self.start_time
+            
+            if self.config.debug_mode:
+                self._debug_print(f"处理扫描结果 #{self.url_count}: {result.get('url', '未知URL')}")
+            
+            if isinstance(result.get('status'), str) and 'Error' in result['status']:
+                result['status'] = 'Error'
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"初始化输出处理时出错: {type(e).__name__}: {e}")
+            return
 
         # 生成请求签名（长度、状态、返回内容hash）
         content_hash = ''
@@ -870,30 +927,41 @@ class OutputHandler(DebugMixin):
         
         # 敏感信息显示
         sensitive_str = ""
-        if result.get('sensitive_raw'):
-            # 处理结构化敏感信息格式
-            sensitive_types = []
-            for item in result['sensitive_raw']:
-                if isinstance(item, dict):
-                    # 结构化格式：字典结构
-                    sensitive_type = item.get('type', '未知')
-                    count = item.get('count', 0)
-                    samples = item.get('samples', [])
-                    
-                    # 构建显示格式：类型X数量
-                    display_format = f"{sensitive_type}X{count}"
-                    sensitive_types.append(display_format)
-                    
-                    if self.config.debug_mode:
-                        self._debug_print(f"处理敏感信息: {sensitive_type} x{count} 个样本")
-                else:
-                    # 其他格式，直接转为字符串
-                    sensitive_types.append(str(item))
-            
-            sensitive_str = Fore.RED + Style.BRIGHT + f" -> [{'，'.join(sensitive_types)}]"
+        try:
+            if result.get('sensitive_raw'):
+                # 处理结构化敏感信息格式
+                sensitive_types = []
+                for item in result['sensitive_raw']:
+                    try:
+                        if isinstance(item, dict):
+                            # 结构化格式：字典结构
+                            sensitive_type = item.get('type', '未知')
+                            count = item.get('count', 0)
+                            samples = item.get('samples', [])
+                            
+                            # 构建显示格式：类型X数量
+                            display_format = f"{sensitive_type}X{count}"
+                            sensitive_types.append(display_format)
+                            
+                            if self.config.debug_mode:
+                                self._debug_print(f"处理敏感信息: {sensitive_type} x{count} 个样本")
+                        else:
+                            # 其他格式，直接转为字符串
+                            sensitive_types.append(str(item))
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"处理敏感信息项时出错: {type(e).__name__}: {e}")
+                        sensitive_types.append("处理错误")
+                
+                sensitive_str = Fore.RED + Style.BRIGHT + f" -> [{'，'.join(sensitive_types)}]"
 
+                if self.config.debug_mode:
+                    self._debug_print(f"发现敏感信息: {'，'.join(sensitive_types)}")
+                result['sensitive'] = sensitive_str
+        except Exception as e:
             if self.config.debug_mode:
-                self._debug_print(f"发现敏感信息: {'，'.join(sensitive_types)}")
+                self._debug_print(f"处理敏感信息显示时出错: {type(e).__name__}: {e}")
+            sensitive_str = Fore.RED + Style.BRIGHT + " -> [处理错误]"
             result['sensitive'] = sensitive_str
         # 重复URL标记 - 使用紫色显示
         is_duplicate = result.get('is_duplicate', False) or result.get('status') == '重复'
@@ -920,9 +988,9 @@ class OutputHandler(DebugMixin):
                 f"{Fore.BLUE}{depth_str}{Style.RESET_ALL} "
                 f"{status_color}{status_str}{Style.RESET_ALL} "
                 f"{Fore.WHITE}{length_str}{Style.RESET_ALL} "
+                f"{file_type_color}{file_type_str}{Style.RESET_ALL} "
                 f"{Fore.CYAN}{title_str}{Style.RESET_ALL} "
                 f"{Fore.WHITE}{result['url']}{Style.RESET_ALL} "
-                f"{file_type_color}{file_type_str}{Style.RESET_ALL} "
                 f"{Fore.YELLOW}{time_str}{Style.RESET_ALL}"
                 f"{sensitive_str}"
             )
@@ -938,64 +1006,93 @@ class OutputHandler(DebugMixin):
         
         # 写入CSV文件
         if self.config.output_file:
-            with open(self.config.output_file, 'a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
+            try:
+                with open(self.config.output_file, 'a', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    
+                    # 处理敏感信息数据用于CSV保存
+                    sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                    
+                    writer.writerow([
+                        result.get('url', ''),
+                        result.get('status', ''),
+                        result.get('title', ''),
+                        result.get('length', 0),
+                        result.get('link_type', ''),  # 链接类型
+                        result.get('redirects', ''),
+                        result.get('depth', 0),
+                        sensitive_types,  # 敏感信息类型
+                        sensitive_counts,  # 敏感信息数量
+                        sensitive_details,  # 敏感信息详细清单
+                        '是' if result.get('is_duplicate', False) else '否'  # 添加重复标记列
+                    ])
                 
-                # 处理敏感信息数据用于CSV保存
-                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                
-                writer.writerow([
-                    result['url'],
-                    result['status'],
-                    result['title'],
-                    result['length'],
-                    result['redirects'],
-                    result['depth'],
-                    sensitive_types,  # 敏感信息类型
-                    sensitive_counts,  # 敏感信息数量
-                    sensitive_details,  # 敏感信息详细清单
-                    '是' if result.get('is_duplicate', False) else '否',  # 添加重复标记列
-                    result.get('link_type', '')  # 新增：链接类型
-                ])
-            
-            if self.config.debug_mode:
-                self._debug_print(f"结果已写入CSV文件")
+                if self.config.debug_mode:
+                    self._debug_print(f"结果已写入CSV文件")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"写入CSV文件时出错: {type(e).__name__}: {e}")
+                print(f"{Fore.RED}写入CSV文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
     
     def generate_report(self, results, report_file="full_report.csv"):
         """生成最终扫描报告"""
-        if self.config.debug_mode:
-            self._debug_print(f"开始生成最终报告: {report_file}")
-            self._debug_print(f"报告包含 {len(results)} 个扫描结果")
-        
-        os.makedirs(os.path.dirname(os.path.abspath(report_file)), exist_ok=True)
-        with open(report_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['URL', '状态', '标题', '长度', '重定向', '深度', '敏感信息类型', '敏感信息数量', '敏感信息详细清单', '是否重复', '链接类型'])
-            for result in results:
-                # 自动补充link_type
-                url_path = result['url'].split('?')[0] if 'url' in result else ''
-                if '.' in url_path.split('/')[-1]:
-                    ext = url_path.split('.')[-1].upper()
-                    link_type = ext
-                else:
-                    link_type = "接口"
-                
-                # 处理敏感信息数据用于CSV保存
-                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                
-                writer.writerow([
-                    result['url'],
-                    result['status'],
-                    result['title'],
-                    result['length'],
-                    result['redirects'],
-                    result['depth'],
-                    sensitive_types,  # 敏感信息类型
-                    sensitive_counts,  # 敏感信息数量
-                    sensitive_details,  # 敏感信息详细清单
-                    '是' if result.get('is_duplicate', False) else '否',
-                    result.get('link_type', link_type)  # 新增：链接类型
-                ])
+        try:
+            if self.config.debug_mode:
+                self._debug_print(f"开始生成最终报告: {report_file}")
+                self._debug_print(f"报告包含 {len(results)} 个扫描结果")
+            
+            os.makedirs(os.path.dirname(os.path.abspath(report_file)), exist_ok=True)
+            with open(report_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['URL', '状态', '标题', '长度', '链接类型', '重定向', '深度', '敏感信息类型', '敏感信息数量', '敏感信息详细清单', '是否重复'])
+                for result in results:
+                    try:
+                        # 自动补充link_type
+                        url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
+                        if '.' in url_path.split('/')[-1]:
+                            ext = url_path.split('/')[-1].upper()
+                            link_type = ext
+                        else:
+                            link_type = "接口"
+                        
+                        # 处理敏感信息数据用于CSV保存
+                        sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                        
+                        writer.writerow([
+                            result.get('url', ''),
+                            result.get('status', ''),
+                            result.get('title', ''),
+                            result.get('length', 0),
+                            result.get('link_type', link_type),  # 链接类型
+                            result.get('redirects', ''),
+                            result.get('depth', 0),
+                            sensitive_types,  # 敏感信息类型
+                            sensitive_counts,  # 敏感信息数量
+                            sensitive_details,  # 敏感信息详细清单
+                            '是' if result.get('is_duplicate', False) else '否'
+                        ])
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"处理单个结果时出错: {type(e).__name__}: {e}")
+                        print(f"{Fore.RED}处理结果时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                        # 写入错误行
+                        writer.writerow([
+                            result.get('url', '错误URL'),
+                            '处理错误',
+                            f'错误: {type(e).__name__}',
+                            0,
+                            '错误',
+                            '',
+                            0,
+                            '处理错误',
+                            '0',
+                            f'错误: {type(e).__name__}',
+                            '否'
+                        ])
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"生成报告时出错: {type(e).__name__}: {e}")
+            print(f"{Fore.RED}生成报告失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
         
         if self.config.debug_mode:
             self._debug_print(f"最终报告生成完成: {report_file}")
@@ -1007,50 +1104,89 @@ class OutputHandler(DebugMixin):
 
     def append_results(self, results, report_file="full_report.csv"):
         """追加写入扫描结果到报告文件（不写表头）"""
-        with open(report_file, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            for result in results:
-                url_path = result['url'].split('?')[0] if 'url' in result else ''
-                if '.' in url_path.split('/')[-1]:
-                    ext = url_path.split('.')[-1].upper()
-                    link_type = ext
-                else:
-                    link_type = "接口"
-                
-                # 处理敏感信息数据用于CSV保存
-                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                
-                writer.writerow([
-                    result['url'],
-                    result['status'],
-                    result['title'],
-                    result['length'],
-                    result['redirects'],
-                    result['depth'],
-                    sensitive_types,  # 敏感信息类型
-                    sensitive_counts,  # 敏感信息数量
-                    sensitive_details,  # 敏感信息详细清单
-                    '是' if result.get('is_duplicate', False) else '否',
-                    result.get('link_type', link_type)  # 新增：链接类型
-                ])
+        try:
+            with open(report_file, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                for result in results:
+                    try:
+                        url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
+                        if '.' in url_path.split('/')[-1]:
+                            ext = url_path.split('/')[-1].upper()
+                            link_type = ext
+                        else:
+                            link_type = "接口"
+                        
+                        # 处理敏感信息数据用于CSV保存
+                        sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                        
+                        writer.writerow([
+                            result.get('url', ''),
+                            result.get('status', ''),
+                            result.get('title', ''),
+                            result.get('length', 0),
+                            result.get('link_type', link_type),  # 链接类型
+                            result.get('redirects', ''),
+                            result.get('depth', 0),
+                            sensitive_types,  # 敏感信息类型
+                            sensitive_counts,  # 敏感信息数量
+                            sensitive_details,  # 敏感信息详细清单
+                            '是' if result.get('is_duplicate', False) else '否'
+                        ])
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"追加单个结果时出错: {type(e).__name__}: {e}")
+                        print(f"{Fore.RED}追加结果时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                        # 写入错误行
+                        writer.writerow([
+                            result.get('url', '错误URL'),
+                            '处理错误',
+                            f'错误: {type(e).__name__}',
+                            0,
+                            '错误',
+                            '',
+                            0,
+                            '处理错误',
+                            '0',
+                            f'错误: {type(e).__name__}',
+                            '否'
+                        ])
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"追加结果到文件时出错: {type(e).__name__}: {e}")
+            print(f"{Fore.RED}追加结果到文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
 
     def output_external_unvisited(self, urls, report_file=None):
         """输出未访问的外部URL，全部紫色，写入文件"""
-        from colorama import Fore, Style
-        for url in urls:
-            output_line = (
-                f"{Fore.MAGENTA}[外部] [外部] [外部] [外部] [外部] {url} [外部] [外部] {Style.RESET_ALL}"
-            )
-            with output_lock:
-                print(output_line)
-            # 写入文件
-            if report_file:
-                with open(report_file, 'a', newline='', encoding='utf-8') as f:
-                    import csv
-                    writer = csv.writer(f)
-                    writer.writerow([
-                        url, '外部', '外部', '外部', '外部', '外部', '', '', '', '否', '外部'
-                    ])
+        try:
+            from colorama import Fore, Style
+            for url in urls:
+                try:
+                    output_line = (
+                        f"{Fore.MAGENTA}[外部] [外部] [外部] [外部] [外部] {url} [外部] [外部] {Style.RESET_ALL}"
+                    )
+                    with output_lock:
+                        print(output_line)
+                    # 写入文件
+                    if report_file:
+                        try:
+                            with open(report_file, 'a', newline='', encoding='utf-8') as f:
+                                import csv
+                                writer = csv.writer(f)
+                                writer.writerow([
+                                    url, '外部', '外部', '外部', '外部', '外部', '外部', '', '', '', '否'
+                                ])
+                        except Exception as e:
+                            if self.config.debug_mode:
+                                self._debug_print(f"写入外部URL到文件时出错: {type(e).__name__}: {e}")
+                            print(f"{Fore.RED}写入外部URL到文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"处理外部URL时出错: {type(e).__name__}: {e}")
+                    print(f"{Fore.RED}处理外部URL时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"输出外部URL时出错: {type(e).__name__}: {e}")
+            print(f"{Fore.RED}输出外部URL失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
 
 # ====================== 扫描核心模块 ======================
 class UltimateURLScanner(DebugMixin):
@@ -1060,25 +1196,73 @@ class UltimateURLScanner(DebugMixin):
 
     def __init__(self, config):
         self.config = config
-        self.session = requests.Session()
-        self.session.headers = config.headers
+        self.debug_mode = config.debug_mode
+        
+        # 初始化计数器
+        self.request_count = 0
+        self.request_count_lock = threading.Lock()
+        self.max_requests = config.max_urls
+        
+        # 初始化队列和状态
         self.url_queue = queue.Queue()
+        self.external_url_queue = queue.Queue()
         self.results = []
+        self.external_results = []
         self.lock = threading.Lock()
         self.running = True
+        self.external_running = True
+        
+        # 初始化URL管理
         self.duplicate_urls = set()
         self.url_request_count = {}
         self.out_of_domain_urls = []
         self.external_urls = set()
         self.external_urls_lock = threading.Lock()
-        self.external_url_queue = queue.Queue()
-        self.external_results = []
-        self.external_running = True
+        
+        # 初始化组件
         self.url_matcher = URLMatcher(config, scanner=self)
         self.sensitive_detector = SensitiveDetector(config.sensitive_patterns, config.debug_mode)
         self.output_handler = OutputHandler(config)
+        
+        # 配置会话和连接池
+        self._setup_session()
+        
         if self.config.debug_mode:
             self._debug_print("扫描器初始化完成")
+
+    def _setup_session(self):
+        """配置HTTP会话和连接池"""
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        self.session = requests.Session()
+        
+        # 配置连接池大小
+        pool_size = max(50, self.config.max_workers * 2)
+        max_pool_size = max(100, self.config.max_workers * 3)
+        
+        # 创建HTTP适配器
+        adapter = HTTPAdapter(
+            pool_connections=pool_size,
+            pool_maxsize=max_pool_size,
+            max_retries=Retry(
+                total=3,
+                backoff_factor=0.1,
+                status_forcelist=[500, 502, 503, 504]
+            )
+        )
+        
+        # 为HTTP和HTTPS都配置适配器
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        
+        # 设置会话属性
+        self.session.headers = self.config.headers
+        self.session.timeout = (self.config.timeout, self.config.timeout)
+        
+        if self.config.debug_mode:
+            self._debug_print(f"连接池配置: pool_connections={pool_size}, pool_maxsize={max_pool_size}")
+            self._debug_print(f"最大请求数配置: max_requests={self.max_requests}")
 
     def _http_request(self, url):
         """统一的HTTP请求和异常处理，返回response或异常信息 - 增强错误处理"""
@@ -1086,8 +1270,17 @@ class UltimateURLScanner(DebugMixin):
         response = None
         last_exception = None
         
+        # 检查请求数量限制
+        with self.request_count_lock:
+            if self.request_count >= self.max_requests:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 达到最大请求数限制: {self.request_count}/{self.max_requests}")
+                return None, Exception("达到最大请求数限制")
+            self.request_count += 1
+            current_request_count = self.request_count
+        
         if self.config.debug_mode:
-            self._debug_print(f"[_http_request] 开始请求: {url}")
+            self._debug_print(f"[_http_request] 开始请求: {url} (请求计数: {current_request_count}/{self.max_requests})")
             self._debug_print(f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}")
         
         for attempt in range(max_retries):
@@ -1095,16 +1288,16 @@ class UltimateURLScanner(DebugMixin):
                 if self.config.debug_mode:
                     self._debug_print(f"[_http_request] 第{attempt+1}次尝试请求: {url}")
                 
+                # 使用会话的超时设置，避免重复设置
                 response = self.session.get(
                     url,
                     proxies=self.config.proxy,
-                    timeout=self.config.timeout,
                     verify=False,
                     allow_redirects=True
                 )
                 
                 if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 请求成功: status_code={response.status_code}, elapsed={response.elapsed}")
+                    self._debug_print(f"[_http_request] 请求成功: url={url}, status_code={response.status_code}, elapsed={response.elapsed}")
                 
                 return response, None
                 
@@ -1154,6 +1347,29 @@ class UltimateURLScanner(DebugMixin):
             self._debug_print(f"[_http_request] 所有重试失败，最终异常: {type(last_exception).__name__}: {last_exception}")
         
         return None, last_exception
+
+    def _cleanup_connections(self):
+        """清理连接池中的连接"""
+        try:
+            if hasattr(self.session, 'poolmanager'):
+                # 清理连接池
+                self.session.poolmanager.clear()
+                if self.config.debug_mode:
+                    self._debug_print("连接池已清理")
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"清理连接池时出错: {type(e).__name__}: {e}")
+
+    def get_request_stats(self):
+        """获取请求统计信息"""
+        with self.request_count_lock:
+            return {
+                'current_requests': self.request_count,
+                'max_requests': self.max_requests,
+                'remaining_requests': max(0, self.max_requests - self.request_count),
+                'url_count': self.output_handler.url_count,
+                'max_urls': self.config.max_urls
+            }
 
     def _build_result(self, url, response=None, error=None, depth=0):
         """统一构建扫描结果字典 - 增强错误处理和调试信息"""
@@ -1386,6 +1602,11 @@ class UltimateURLScanner(DebugMixin):
         # HTTP请求
         response, error = self._http_request(url)
         
+        # 输出请求统计信息（仅在debug模式下）
+        if self.config.debug_mode:
+            stats = self.get_request_stats()
+            self._debug_print(f"[scan_url] 请求统计: {stats['current_requests']}/{stats['max_requests']} 请求, {stats['url_count']}/{stats['max_urls']} URL")
+        
         # 构建结果
         result = self._build_result(url, response, error, depth)
         
@@ -1463,15 +1684,38 @@ class UltimateURLScanner(DebugMixin):
         
         processed_count = 0
         error_count = 0
+        last_cleanup_time = time.time()
         
         while self.running:
             try:
-                # 检查是否达到最大URL数量
+                # 检查是否达到最大URL数量或请求数量限制
                 if self.output_handler.url_count >= self.config.max_urls:
                     if self.config.debug_mode:
-                        self._debug_print(f"[worker] 达到最大URL数量，停止工作线程: {thread_name}")
-                    self.running = False
-                    break
+                        url, depth = self.url_queue.get(timeout=10)
+                        self.url_queue.task_done()
+                        self._debug_print(f"[worker] 达到最大URL数量，跳过扫描{url}，深度{depth}")
+                        continue
+                
+                # 检查请求数量限制
+                with self.request_count_lock:
+                    if self.request_count >= self.max_requests:
+                        if self.config.debug_mode:
+                            url, depth = self.url_queue.get(timeout=10)
+                            self.url_queue.task_done()
+                            self._debug_print(f"[worker] 达到最大请求数限制，跳过扫描{url}，深度{depth}")
+                            continue
+                
+                # 定期清理连接池（每1000个请求或每60秒）
+                current_time = time.time()
+                if processed_count % 1000 == 0 and processed_count > 0 and (current_time - last_cleanup_time) > 60:
+                    try:
+                        self._cleanup_connections()
+                        last_cleanup_time = current_time
+                        if self.config.debug_mode:
+                            self._debug_print(f"[worker] 定期清理连接池 - 线程: {thread_name}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[worker] 清理连接池失败: {type(e).__name__}: {e} - 线程: {thread_name}")
                 
                 # 从队列获取URL
                 try:
@@ -1529,9 +1773,31 @@ class UltimateURLScanner(DebugMixin):
         
         processed_count = 0
         error_count = 0
+        last_cleanup_time = time.time()
         
         while self.external_running or not self.external_url_queue.empty():
             try:
+                # 检查请求数量限制
+                with self.request_count_lock:
+                    if self.request_count >= self.max_requests:
+                        if self.config.debug_mode:
+                            ext_url = self.external_url_queue.get(timeout=2)
+                            self.external_url_queue.task_done()
+                            self._debug_print(f"[external_worker] 达到最大请求数限制，跳过外部URL扫描{ext_url}")
+                            continue
+                
+                # 定期清理连接池（每1000请求或每60秒）
+                current_time = time.time()
+                if processed_count % 1000 == 0 and processed_count > 0 and (current_time - last_cleanup_time) > 60:
+                    try:
+                        self._cleanup_connections()
+                        last_cleanup_time = current_time
+                        if self.config.debug_mode:
+                            self._debug_print(f"[external_worker] 定期清理连接池 - 线程: {thread_name}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[external_worker] 清理连接池失败: {type(e).__name__}: {e} - 线程: {thread_name}")
+                
                 # 从队列获取外部URL
                 try:
                     ext_url = self.external_url_queue.get(timeout=2)
@@ -1539,7 +1805,20 @@ class UltimateURLScanner(DebugMixin):
                         self._debug_print(f"[external_worker] 处理外部URL: {ext_url} - 线程: {thread_name}")
                 except queue.Empty:
                     if self.config.debug_mode:
+                        # 输出队列情况
+                        self._debug_print(f"[external_worker] 外部URL队列大小: {self.external_url_queue.qsize()}")
+                        self._debug_print(f"[external_worker] 主队列大小: {self.url_queue.qsize()}")
                         self._debug_print(f"[external_worker] 外部URL队列为空，继续等待 - 线程: {thread_name}")
+                    # 如果主线程已经停止，则退出
+                    if not self.running:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[external_worker] 主线程已停止，外部URL线程退出: {thread_name}")
+                        break
+
+                    continue
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[external_worker] 外部URL队列获取异常: {type(e).__name__}: {e}, 线程: {thread_name}")
                     continue
                 
                 # 扫描外部URL
@@ -1582,6 +1861,9 @@ class UltimateURLScanner(DebugMixin):
         """开始扫描过程 - 增强错误处理"""
         if self.config.debug_mode:
             self._debug_print(f"[start_scan] 开始扫描过程: start_url={self.config.start_url}")
+            # 输出初始配置信息
+            stats = self.get_request_stats()
+            self._debug_print(f"[start_scan] 初始配置: 最大请求数={stats['max_requests']}, 最大URL数={stats['max_urls']}")
         
         try:
             # 添加起始URL到队列
@@ -1633,11 +1915,28 @@ class UltimateURLScanner(DebugMixin):
                 
                 if self.config.debug_mode:
                     self._debug_print(f"[start_scan] 所有工作线程已处理")
+                
+                # 扫描结束时清理连接池
+                try:
+                    self._cleanup_connections()
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 扫描结束，连接池已清理")
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 清理连接池失败: {type(e).__name__}: {e}")
                     
         except Exception as e:
             if self.config.debug_mode:
                 self._debug_print(f"[start_scan] 扫描过程异常: {type(e).__name__}: {e}")
             self.running = False
+            # 异常时也清理连接池
+            try:
+                self._cleanup_connections()
+                if self.config.debug_mode:
+                    self._debug_print(f"[start_scan] 异常退出，连接池已清理")
+            except Exception as cleanup_e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[start_scan] 异常退出时清理连接池失败: {type(cleanup_e).__name__}: {cleanup_e}")
             raise
 
     def generate_report(self, report_file="full_report.csv"):
@@ -1652,207 +1951,200 @@ class UltimateURLScanner(DebugMixin):
                 self.output_handler.output_external_unvisited(unvisited, report_file)
                 print(f"\n{Fore.MAGENTA}外部URL已经追加到报告文件: {report_file}{Style.RESET_ALL}")
 
-def scanner_start(config):
-    """启动扫描器 - 增强错误处理"""
-    if config.debug_mode:
-        print(f"{Fore.CYAN}[scanner_start] 开始初始化扫描器...{Style.RESET_ALL}")
-    
-    try:
-        # 创建扫描器
-        scanner = UltimateURLScanner(config)
-        if config.debug_mode:
-            print(f"{Fore.CYAN}[scanner_start] 扫描器创建成功{Style.RESET_ALL}")
+    def start_scanning(self):
+        """启动扫描器 - 增强错误处理"""
+        if self.config.debug_mode:
+            print(f"{Fore.CYAN}[start_scanning] 开始初始化扫描器...{Style.RESET_ALL}")
         
-        print(f"{Fore.GREEN}扫描器已就绪，开始扫描目标: {config.start_url}{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}配置: 最大深度={config.max_depth}, 最大URL数={config.max_urls}, 线程数={config.max_workers}{Style.RESET_ALL}")
-        start_time = time.time()
-        
-        # 启动外部URL线程
         try:
-            external_thread = threading.Thread(target=scanner.external_worker, name="ExternalURLThread", daemon=True)
-            external_thread.start()
-            if config.debug_mode:
-                print(f"{Fore.CYAN}[scanner_start] 外部URL线程已启动{Style.RESET_ALL}")
-        except Exception as e:
-            if config.debug_mode:
-                print(f"{Fore.RED}[scanner_start] 启动外部URL线程失败: {e}{Style.RESET_ALL}")
-            # 继续执行，不因为外部线程失败而停止
-
-        try:
-            scanner.start_scan()
-        except KeyboardInterrupt:
-            print(f"\n{Fore.RED}扫描被用户中断!{Style.RESET_ALL}")
-            if config.debug_mode:
-                print(f"{Fore.YELLOW}[scanner_start] 用户中断扫描{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"\n{Fore.RED}扫描出错: {str(e)}{Style.RESET_ALL}")
-            if config.debug_mode:
-                print(f"{Fore.RED}[scanner_start] 扫描异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
-                import traceback
-                traceback.print_exc()
-        finally:
+            if self.config.debug_mode:
+                print(f"{Fore.CYAN}[start_scanning] 扫描器创建成功{Style.RESET_ALL}")
+            
+            print(f"{Fore.GREEN}扫描器已就绪，开始扫描目标: {self.config.start_url}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}配置: 最大深度={self.config.max_depth}, 最大URL数={self.config.max_urls}, 线程数={self.config.max_workers}{Style.RESET_ALL}")
+            start_time = time.time()
+            
+            # 启动外部URL线程
             try:
-                # 自动生成报告文件名：主域名_日期时间.csv
-                from datetime import datetime
-                import re as _re
-                parsed_url = urllib.parse.urlparse(config.start_url)
-                domain = parsed_url.netloc or config.start_url
-                # 只保留域名部分，去除端口
-                domain = domain.split(':')[0]
-                # 去除非字母数字和点
-                domain = _re.sub(r'[^a-zA-Z0-9.]', '', domain)
-                dt_str = datetime.now().strftime('%Y%m%d_%H%M')
-                report_filename = f"results/{domain}_{dt_str}.csv"
-                
-                if config.debug_mode:
-                    print(f"{Fore.CYAN}[scanner_start] 生成报告: {report_filename}{Style.RESET_ALL}")
-                
-                scanner.generate_report(report_filename)
-                total_time = time.time() - start_time
-                
-                if total_time > 0:
-                    avg_speed = scanner.output_handler.url_count / total_time
-                else:
-                    avg_speed = 0
-                
-                print(f"{Fore.YELLOW}总耗时: {total_time:.2f}秒 | 平均速度: {avg_speed:.1f} URL/秒{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}扫描结束!{Style.RESET_ALL}")
-                
-                # 优雅关闭外部线程
-                try:
-                    scanner.external_running = False
-                    external_thread.join(timeout=10)
-                    if config.debug_mode:
-                        print(f"{Fore.CYAN}[scanner_start] 外部URL线程已关闭{Style.RESET_ALL}")
-                except Exception as e:
-                    if config.debug_mode:
-                        print(f"{Fore.RED}[scanner_start] 关闭外部URL线程失败: {e}{Style.RESET_ALL}")
-                
-                # 生成外部URL访问报告
-                try:
-                    if scanner.external_results:
-                        scanner.output_handler.append_results(scanner.external_results, report_filename)
-                        print(f"{Fore.GREEN}外部URL访问结束，结果已追加写入: {report_filename}{Style.RESET_ALL}")
-                except Exception as e:
-                    if config.debug_mode:
-                        print(f"{Fore.RED}[scanner_start] 处理外部URL结果失败: {e}{Style.RESET_ALL}")
-                
+                external_thread = threading.Thread(target=self.external_worker, name="ExternalURLThread", daemon=True)
+                external_thread.start()
+                if self.config.debug_mode:
+                    print(f"{Fore.CYAN}[start_scanning] 外部URL线程已启动{Style.RESET_ALL}")
             except Exception as e:
-                print(f"{Fore.RED}生成报告时出错: {str(e)}{Style.RESET_ALL}")
-                if config.debug_mode:
-                    print(f"{Fore.RED}[scanner_start] 报告生成异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                if self.config.debug_mode:
+                    print(f"{Fore.RED}[start_scanning] 启动外部URL线程失败: {e}{Style.RESET_ALL}")
+                # 继续执行，不因为外部线程失败而停止
+
+            try:
+                self.start_scan()
+            except KeyboardInterrupt:
+                print(f"\n{Fore.RED}扫描被用户中断!{Style.RESET_ALL}")
+                if self.config.debug_mode:
+                    print(f"{Fore.YELLOW}[start_scanning] 用户中断扫描{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"\n{Fore.RED}扫描出错: {str(e)}{Style.RESET_ALL}")
+                if self.config.debug_mode:
+                    print(f"{Fore.RED}[start_scanning] 扫描异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
                     import traceback
                     traceback.print_exc()
-    
-    except Exception as e:
-        print(f"{Fore.RED}扫描器初始化失败: {str(e)}{Style.RESET_ALL}")
-        if config.debug_mode:
-            print(f"{Fore.RED}[scanner_start] 初始化异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
-            import traceback
-            traceback.print_exc()
+            finally:
+                try:
+                    # 自动生成报告文件名：主域名_日期时间.csv
+                    from datetime import datetime
+                    import re as _re
+                    parsed_url = urllib.parse.urlparse(self.config.start_url)
+                    domain = parsed_url.netloc or self.config.start_url
+                    # 只保留域名部分，去除端口
+                    domain = domain.split(':')[0]
+                    # 去除非字母数字和点
+                    domain = _re.sub(r'[^a-zA-Z0-9.]', '', domain)
+                    dt_str = datetime.now().strftime('%Y%m%d_%H%M')
+                    report_filename = f"results/{domain}_{dt_str}.csv"
+                    
+                    if self.config.debug_mode:
+                        print(f"{Fore.CYAN}[start_scanning] 生成报告: {report_filename}{Style.RESET_ALL}")
+                    
+                    self.generate_report(report_filename)
+                    total_time = time.time() - start_time
+                    
+                    if total_time > 0:
+                        avg_speed = self.output_handler.url_count / total_time
+                    else:
+                        avg_speed = 0
+                    
+                    print(f"{Fore.YELLOW}总耗时: {total_time:.2f}秒 | 平均速度: {avg_speed:.1f} URL/秒{Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}扫描结束!{Style.RESET_ALL}")
+                    
+                    # 优雅关闭外部线程
+                    try:
+                        self.external_running = False
+                        external_thread.join(timeout=10)
+                        if self.config.debug_mode:
+                            print(f"{Fore.CYAN}[start_scanning] 外部URL线程已关闭{Style.RESET_ALL}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            print(f"{Fore.RED}[start_scanning] 关闭外部URL线程失败: {e}{Style.RESET_ALL}")
+                    
+                    # 生成外部URL访问报告
+                    try:
+                        if hasattr(self, 'external_results') and self.external_results:
+                            self.output_handler.append_results(self.external_results, report_filename)
+                            print(f"{Fore.GREEN}外部URL访问结束，结果已追加写入: {report_filename}{Style.RESET_ALL}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            print(f"{Fore.RED}[start_scanning] 处理外部URL结果失败: {e}{Style.RESET_ALL}")
+                    
+                    # 最终清理连接池
+                    try:
+                        self._cleanup_connections()
+                        if self.config.debug_mode:
+                            print(f"{Fore.CYAN}[start_scanning] 最终清理连接池完成{Style.RESET_ALL}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            print(f"{Fore.RED}[start_scanning] 最终清理连接池失败: {e}{Style.RESET_ALL}")
+                    
+                except Exception as e:
+                    print(f"{Fore.RED}生成报告时出错: {str(e)}{Style.RESET_ALL}")
+                    if self.config.debug_mode:
+                        print(f"{Fore.RED}[start_scanning] 报告生成异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                        import traceback
+                        traceback.print_exc()
+                    
+                    # 异常时也清理连接池
+                    try:
+                        self._cleanup_connections()
+                        if self.config.debug_mode:
+                            print(f"{Fore.CYAN}[start_scanning] 异常退出时清理连接池完成{Style.RESET_ALL}")
+                    except Exception as cleanup_e:
+                        if self.config.debug_mode:
+                            print(f"{Fore.RED}[start_scanning] 异常退出时清理连接池失败: {cleanup_e}{Style.RESET_ALL}")
+        
+        except Exception as e:
+            print(f"{Fore.RED}扫描器初始化失败: {str(e)}{Style.RESET_ALL}")
+            if self.config.debug_mode:
+                print(f"{Fore.RED}[start_scanning] 初始化异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                import traceback
+                traceback.print_exc()
+
+
 
 def main():
-
-    print(f"{Fore.YELLOW}=== WhiteURLScan v1.3 ===")
-    print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
-    print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中 ===")
-    print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
-    parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
-    parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
-    parser.add_argument('-uf', dest='url_file', type=str, help='批量URL文件，每行一个URL')
-    parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
-    parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
-    parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
-    parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
-    parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置')
-    parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
-    parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开')
-    args = parser.parse_args()
-
-    # 必须至少输入 --start_url 或 --url_file
-    if not args.start_url and not args.url_file:
-        print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -uf 至少指定一个扫描目标！{Style.RESET_ALL}")
-        sys.exit(1) 
-
-    # 固定从config.json读取配置
-    config_path = 'config.json'
-    default_config = {
-        "start_url": None,
-        "proxy": None,
-        "delay": 0.1,
-        "max_workers": 30,
-        "timeout": 10,
-        "max_depth": 5,
-        "blacklist_domains": ["www.w3.org"],
-        "headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1"
-        },
-        "output_file": "results/实时输出文件.csv",
-        "color_output": True,
-        "verbose": True,
-        "extension_blacklist": [".css", ".mp4"],
-        "max_urls": 10000,
-        "smart_concatenation": True,
-        "debug_mode": 0,
-        "url_scope_mode": 0
-    }
-    if not os.path.exists(config_path):
-        with open(config_path, 'w', encoding='utf-8') as f:
-            json.dump(default_config, f, ensure_ascii=False, indent=2)
-        print(f"{Fore.YELLOW}未检测到config.json，已自动创建默认配置文件！请根据需要修改。{Style.RESET_ALL}")
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config_data = json.load(f)
-
-    # 命令行参数优先级高于配置文件
-    def get_config_value(key, default=None):
-        return getattr(args, key, None) if getattr(args, key, None) is not None else config_data.get(key, default)
-
-
-    print(f"{Fore.CYAN}正在初始化扫描器...{Style.RESET_ALL}")
-    
-    # 创建配置
-    config = ScannerConfig(
-        start_url=get_config_value('start_url'),
-        proxy=get_config_value('proxy'),
-        delay=config_data.get('delay', 0.1),
-        max_workers=get_config_value('max_workers', 30),
-        timeout=get_config_value('timeout', 10),
-        max_depth=get_config_value('max_depth', 5),
-        blacklist_domains=config_data.get('blacklist_domains'),
-        headers=config_data.get('headers'),
-        output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
-        color_output=config_data.get('color_output', True),
-        verbose=config_data.get('verbose', True),
-        extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
-        max_urls=config_data.get('max_urls', 10000),
-        smart_concatenation=config_data.get('smart_concatenation', True),
-        debug_mode=get_config_value('debug_mode', 0),
-        url_scope_mode=get_config_value('url_scope_mode', 0)  # 新增
-    )
-    # 如果输入的是-u, 则直接开始扫描
-    if args.start_url:
-        print(f"{Fore.YELLOW}开始扫描: {args.start_url}{Style.RESET_ALL}")
-        scanner_start(config)
-    # 如果输入的是-uf 则读取url_file文件, 遍历更新config.start_url, 然后循环开始扫描
-    elif args.url_file:
-        if not os.path.exists(args.url_file):
-            print(f"{Fore.RED}错误：URL文件 {args.url_file} 不存在！{Style.RESET_ALL}")
+    try:
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.3 ===")
+        # 增加作者和GitHub地址
+        print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan ===")
+        print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
+        print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中 ===")
+        print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+        
+        try:
+            parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
+            parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
+            parser.add_argument('-uf', dest='url_file', type=str, help='批量URL文件，每行一个URL')
+            parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
+            parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
+            parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
+            parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
+            parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置')
+            parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
+            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开')
+            args = parser.parse_args()
+        except Exception as e:
+            print(f"{Fore.RED}解析命令行参数时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
             sys.exit(1)
-        
-        with open(args.url_file, 'r', encoding='utf-8') as f:
-            urls = [line.strip() for line in f if line.strip()]
-        
-        print(f"{Fore.YELLOW}从文件读取到 {len(urls)} 个URL，开始批量扫描...{Style.RESET_ALL}")
-        
-        for i, url in enumerate(urls, 1):
-            print(f"{Fore.CYAN}[{i}/{len(urls)}] 开始扫描: {url}{Style.RESET_ALL}")
-            # 为每个URL创建独立的配置实例
-            url_config = ScannerConfig(
-                start_url=url,
+
+        # 必须至少输入 --start_url 或 --url_file
+        if not args.start_url and not args.url_file:
+            print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -uf 至少指定一个扫描目标！{Style.RESET_ALL}")
+            sys.exit(1) 
+
+        # 固定从config.json读取配置
+        try:
+            config_path = 'config.json'
+            default_config = {
+                "start_url": None,
+                "proxy": None,
+                "delay": 0.1,
+                "max_workers": 30,
+                "timeout": 10,
+                "max_depth": 5,
+                "blacklist_domains": ["www.w3.org"],
+                "headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1"
+                },
+                "output_file": "results/实时输出文件.csv",
+                "color_output": True,
+                "verbose": True,
+                "extension_blacklist": [".css", ".mp4"],
+                "max_urls": 10000,
+                "smart_concatenation": True,
+                "debug_mode": 0,
+                "url_scope_mode": 0
+            }
+            if not os.path.exists(config_path):
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(default_config, f, ensure_ascii=False, indent=2)
+                print(f"{Fore.YELLOW}未检测到config.json，已自动创建默认配置文件！请根据需要修改。{Style.RESET_ALL}")
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+        except Exception as e:
+            print(f"{Fore.RED}读取配置文件时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+            sys.exit(1)
+
+        # 命令行参数优先级高于配置文件
+        def get_config_value(key, default=None):
+            return getattr(args, key, None) if getattr(args, key, None) is not None else config_data.get(key, default)
+
+        try:
+            print(f"{Fore.CYAN}正在初始化扫描器...{Style.RESET_ALL}")
+            
+            # 创建配置
+            config = ScannerConfig(
+                start_url=get_config_value('start_url'),
                 proxy=get_config_value('proxy'),
                 delay=config_data.get('delay', 0.1),
                 max_workers=get_config_value('max_workers', 30),
@@ -1869,7 +2161,60 @@ def main():
                 debug_mode=get_config_value('debug_mode', 0),
                 url_scope_mode=get_config_value('url_scope_mode', 0)  # 新增
             )
-            scanner_start(url_config)
+            
+            # 如果输入的是-u, 则直接开始扫描
+            if args.start_url:
+                print(f"{Fore.YELLOW}开始扫描: {args.start_url}{Style.RESET_ALL}")
+                scanner = UltimateURLScanner(config)
+                scanner.start_scanning()
+            # 如果输入的是-uf 则读取url_file文件, 遍历更新config.start_url, 然后循环开始扫描
+            elif args.url_file:
+                try:
+                    if not os.path.exists(args.url_file):
+                        print(f"{Fore.RED}错误：URL文件 {args.url_file} 不存在！{Style.RESET_ALL}")
+                        sys.exit(1)
+                    
+                    with open(args.url_file, 'r', encoding='utf-8') as f:
+                        urls = [line.strip() for line in f if line.strip()]
+                    
+                    print(f"{Fore.YELLOW}从文件读取到 {len(urls)} 个URL，开始批量扫描...{Style.RESET_ALL}")
+                    
+                    for i, url in enumerate(urls, 1):
+                        try:
+                            print(f"{Fore.CYAN}[{i}/{len(urls)}] 开始扫描: {url}{Style.RESET_ALL}")
+                            # 为每个URL创建独立的配置实例
+                            url_config = ScannerConfig(
+                                start_url=url,
+                                proxy=get_config_value('proxy'),
+                                delay=config_data.get('delay', 0.1),
+                                max_workers=get_config_value('max_workers', 30),
+                                timeout=get_config_value('timeout', 10),
+                                max_depth=get_config_value('max_depth', 5),
+                                blacklist_domains=config_data.get('blacklist_domains'),
+                                headers=config_data.get('headers'),
+                                output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
+                                color_output=config_data.get('color_output', True),
+                                verbose=config_data.get('verbose', True),
+                                extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
+                                max_urls=config_data.get('max_urls', 10000),
+                                smart_concatenation=config_data.get('smart_concatenation', True),
+                                debug_mode=get_config_value('debug_mode', 0),
+                                url_scope_mode=get_config_value('url_scope_mode', 0)  # 新增
+                            )
+                            scanner = UltimateURLScanner(url_config)
+                            scanner.start_scanning()
+                        except Exception as e:
+                            print(f"{Fore.RED}扫描URL {url} 时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                            continue
+                except Exception as e:
+                    print(f"{Fore.RED}处理URL文件时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                    sys.exit(1)
+        except Exception as e:
+            print(f"{Fore.RED}初始化扫描器时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"{Fore.RED}程序运行出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:
