@@ -91,13 +91,18 @@ except ImportError:
 
 # ====================== 通用调试输出 Mixin ======================
 class DebugMixin:
+    def __init__(self, debug_mode=False):
+        self.debug_mode = debug_mode
+
+
     def _debug_print(self, message):
         if hasattr(self, 'debug_mode') and self.debug_mode:
             debug_prefix = f"{Fore.MAGENTA}[DEBUG]{Style.RESET_ALL}"
             print(f"{debug_prefix} {message}")
             try:
                 logging.debug(message)
-            except Exception:
+            except Exception as e:
+                print(f"Debug输出异常: {e}")
                 pass
 
 # ====================== 异常处理装饰器 ======================
@@ -362,14 +367,12 @@ class URLMatcher(DebugMixin):
         parsed = urllib.parse.urlparse(url)
         domain = parsed.netloc
         
-        if self.config.debug_mode:
-            self._debug_print(f"检查域名有效性: {domain}")
+        self._debug_print(f"检查域名有效性: {domain}")
         
         # 检查黑名单
         for black_domain in self.config.blacklist_domains:
             if black_domain in domain:
-                if self.config.debug_mode:
-                    self._debug_print(f"域名在黑名单中: {domain} (匹配: {black_domain})")
+                self._debug_print(f"域名在黑名单中: {domain} (匹配: {black_domain})")
                 return False
 
         # 检查是否属于同一主域或其子域
@@ -381,8 +384,7 @@ class URLMatcher(DebugMixin):
         else:
             is_valid = domain == self.config.base_domain or domain.endswith('.' + self.config.base_domain)
         
-        if self.config.debug_mode:
-            self._debug_print(f"域名检查结果: {domain} -> {'有效' if is_valid else '无效'}")
+        self._debug_print(f"域名检查结果: {domain} -> {'有效' if is_valid else '无效'}")
    
         return is_valid
     
@@ -391,18 +393,15 @@ class URLMatcher(DebugMixin):
         parsed = urllib.parse.urlparse(url)
         path = parsed.path.lower()
         
-        if self.config.debug_mode:
-            self._debug_print(f"检查URL是否跳过: {url}")
+        self._debug_print(f"检查URL是否跳过: {url}")
         
         # 检查扩展名黑名单
         for ext in self.config.extension_blacklist:
             if path.endswith(ext):
-                if self.config.debug_mode:
-                    self._debug_print(f"URL因扩展名跳过: {url} (扩展名: {ext})")
+                self._debug_print(f"URL因扩展名跳过: {url} (扩展名: {ext})")
                 return True
         
-        if self.config.debug_mode:
-            self._debug_print(f"URL检查通过: {url}")
+        self._debug_print(f"URL检查通过: {url}")
         
         return False
     
@@ -411,19 +410,16 @@ class URLMatcher(DebugMixin):
         try:
             urls = set()
             
-            if self.config.debug_mode:
-                self._debug_print(f"开始从内容提取URL: base_url={base_url}")
+            self._debug_print(f"开始从内容提取URL: base_url={base_url}")
             
             # 处理文本内容
             try:
                 text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
             except Exception as e:
-                if self.config.debug_mode:
-                    self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
+                self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
                 text_content = str(content) if content else ""
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"初始化URL提取时出错: {type(e).__name__}: {e}")
+            self._debug_print(f"初始化URL提取时出错: {type(e).__name__}: {e}")
             return set()
         
         # 主要匹配模式：捕获引号内的路径字符串
@@ -534,26 +530,22 @@ class URLMatcher(DebugMixin):
             for pattern in path_patterns:
                 self._match_and_add(pattern, text_content, base_url, urls)
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
+            self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
         
         # 匹配HTML标签中的路径属性
         try:
             for pattern in tag_patterns:
                 self._match_and_add(pattern, text_content, base_url, urls)
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"匹配HTML标签模式时出错: {type(e).__name__}: {e}")
+            self._debug_print(f"匹配HTML标签模式时出错: {type(e).__name__}: {e}")
         
         # 使用BeautifulSoup作为备选方案
         try:
             self._extract_with_bs(text_content, base_url, urls)
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"BeautifulSoup提取时出错: {type(e).__name__}: {e}")
+            self._debug_print(f"BeautifulSoup提取时出错: {type(e).__name__}: {e}")
         
-        if self.config.debug_mode:
-            self._debug_print(f"URL提取完成，共找到 {len(urls)} 个URL")
+        self._debug_print(f"URL提取完成，共找到 {len(urls)} 个URL")
         
         return urls
     
@@ -572,8 +564,7 @@ class URLMatcher(DebugMixin):
                 else:
                     url = match
                 
-                if self.config.debug_mode:
-                    self._debug_print(f"处理匹配结果: {url}")
+                self._debug_print(f"处理匹配结果: {url}")
                 
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
@@ -583,8 +574,7 @@ class URLMatcher(DebugMixin):
     def _extract_with_bs(self, text_content, base_url, url_set):
         """使用BeautifulSoup提取URL"""
         try:
-            if self.config.debug_mode:
-                self._debug_print("开始使用BeautifulSoup提取URL")
+            self._debug_print("开始使用BeautifulSoup提取URL")
             
             soup = BeautifulSoup(text_content, 'html.parser')
             
@@ -622,12 +612,10 @@ class URLMatcher(DebugMixin):
                         if element.has_attr(attr):
                             url = element[attr]
                             bs_count += 1
-                            if self.config.debug_mode:
-                                self._debug_print(f"BeautifulSoup找到: {tag}[{attr}] = {url}")
+                            self._debug_print(f"BeautifulSoup找到: {tag}[{attr}] = {url}")
                             self._process_url(url, base_url, url_set, "BeautifulSoup")
             
-            if self.config.debug_mode:
-                self._debug_print(f"BeautifulSoup提取完成，共处理 {bs_count} 个属性")
+            self._debug_print(f"BeautifulSoup提取完成，共处理 {bs_count} 个属性")
                 
         except Exception as e:
             if self.config.verbose:
@@ -652,8 +640,7 @@ class URLMatcher(DebugMixin):
                             if url not in self.scanner.external_urls:
                                 self.scanner.external_urls.add(url)
                                 self.scanner.external_url_queue.put(url)
-                    if self.config.debug_mode:
-                        self._debug_print(f"外部URL已收集: {url}")
+                    self._debug_print(f"外部URL已收集: {url}")
                     return  # 外部URL不加入主扫描集合
 
 
@@ -666,15 +653,13 @@ class URLMatcher(DebugMixin):
             return  # 如果没有合法URL部分，直接跳过
 
         if not url or url.strip() == "":
-            if self.config.debug_mode:
-                self._debug_print(f"跳过空URL")
+            self._debug_print(f"跳过空URL")
             return
     
 
         # 跳过常见无效URL
         if url.startswith(('javascript:', 'data:', 'mailto:', 'tel:')):
-            if self.config.debug_mode:
-                self._debug_print(f"跳过无效URL: {url}")
+            self._debug_print(f"跳过无效URL: {url}")
             return
         
         # print(url)
@@ -688,8 +673,7 @@ class URLMatcher(DebugMixin):
         if url.startswith('//'):
             parsed_base = urllib.parse.urlparse(base_url)
             url = f"{parsed_base.scheme}:{url}"
-            if self.config.debug_mode:
-                self._debug_print(f"协议相对URL处理: {url}")
+            self._debug_print(f"协议相对URL处理: {url}")
         
         # 应用智能拼接
         if self.config.smart_concatenation:
@@ -701,16 +685,13 @@ class URLMatcher(DebugMixin):
 
         normalized = full_url
 
-        if self.config.debug_mode:
-            self._debug_print(f"URL处理结果: {url} -> {normalized}")
+        self._debug_print(f"URL处理结果: {url} -> {normalized}")
 
         if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
             url_set.add(normalized)
-            if self.config.debug_mode:
-                self._debug_print(f"URL已添加到集合: {normalized}")
+            self._debug_print(f"URL已添加到集合: {normalized}")
         else:
-            if self.config.debug_mode:
-                self._debug_print(f"URL被过滤: {normalized}")
+            self._debug_print(f"URL被过滤: {normalized}")
 
 
 # ====================== 敏感信息检测模块 ======================
@@ -723,18 +704,15 @@ class SensitiveDetector(DebugMixin):
         """检测响应中的敏感信息 - 返回结构化格式"""
         try:
             if not content:
-                if self.debug_mode:
-                    self._debug_print("内容为空，跳过敏感信息检测")
+                self._debug_print("内容为空，跳过敏感信息检测")
                 return []
             
-            if self.debug_mode:
-                self._debug_print("开始敏感信息检测")
+            self._debug_print("开始敏感信息检测")
             
             try:
                 text_content = content.decode('utf-8', 'ignore') if isinstance(content, bytes) else content
             except Exception as e:
-                if self.debug_mode:
-                    self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
+                self._debug_print(f"内容解码失败: {type(e).__name__}: {e}")
                 text_content = str(content) if content else ""
             
             detected = []
@@ -760,28 +738,22 @@ class SensitiveDetector(DebugMixin):
                     
                         detected.append(detected_item)
                         
-                        if self.debug_mode:
-                            self._debug_print(f"发现敏感信息: {name} x{count} 个样本")
+                        self._debug_print(f"发现敏感信息: {name} x{count} 个样本")
                     else:
-                        if self.debug_mode:
-                            pass # 减少输出
-                            # self._debug_print(f"未发现敏感信息: {name}")
+                        pass # 减少输出
+                        # self._debug_print(f"未发现敏感信息: {name}")
                 except re.error as e:
-                    if self.debug_mode:
-                        self._debug_print(f"正则表达式错误 ({name}): {str(e)}")
+                    self._debug_print(f"正则表达式错误 ({name}): {str(e)}")
                     continue  # 跳过无效的正则表达式
                 except Exception as e:
-                    if self.debug_mode:
-                        self._debug_print(f"处理敏感信息模式时出错 ({name}): {type(e).__name__}: {e}")
+                    self._debug_print(f"处理敏感信息模式时出错 ({name}): {type(e).__name__}: {e}")
                     continue
             
-            if self.debug_mode:
-                self._debug_print(f"敏感信息检测完成，共发现 {len(detected)} 种敏感信息")
+            self._debug_print(f"敏感信息检测完成，共发现 {len(detected)} 种敏感信息")
             
             return detected
         except Exception as e:
-            if self.debug_mode:
-                self._debug_print(f"敏感信息检测过程中出错: {type(e).__name__}: {e}")
+            self._debug_print(f"敏感信息检测过程中出错: {type(e).__name__}: {e}")
             return []
 
 # ====================== 输出处理模块 ======================
@@ -800,8 +772,7 @@ class OutputHandler(DebugMixin):
                 writer = csv.writer(f)
                 writer.writerow(['URL', 'Status', 'Title', 'Length', 'Redirects', 'Depth', 'Sensitive Types', 'Sensitive Counts', 'Sensitive Details', 'Is Duplicate'])
             
-            if self.config.debug_mode:
-                self._debug_print(f"输出文件已初始化: {config.output_file}")
+            self._debug_print(f"输出文件已初始化: {config.output_file}")
     
     def _format_sensitive_data_for_csv(self, sensitive_raw):
         """格式化敏感信息数据用于CSV保存 - 返回三个字段：类型、数量、详细清单"""
@@ -1277,15 +1248,13 @@ class UltimateURLScanner(DebugMixin):
         """检查请求限制，返回是否应该继续处理"""
         # 检查URL数量限制
         if self.output_handler.url_count >= self.config.max_urls:
-            if self.config.debug_mode:
-                self._debug_print(f"达到最大URL数量限制: {self.output_handler.url_count}/{self.config.max_urls}")
+            self._debug_print(f"达到最大URL数量限制: {self.output_handler.url_count}/{self.config.max_urls}")
             return False
         
         # 检查请求数量限制
         with self.request_count_lock:
             if self.request_count >= self.max_requests:
-                if self.config.debug_mode:
-                    self._debug_print(f"达到最大请求数限制: {self.request_count}/{self.max_requests}")
+                self._debug_print(f"达到最大请求数限制: {self.request_count}/{self.max_requests}")
                 return False
         
         return True
@@ -1296,12 +1265,10 @@ class UltimateURLScanner(DebugMixin):
         if processed_count % 1000 == 0 and processed_count > 0 and (current_time - last_cleanup_time) > 60:
             try:
                 self._cleanup_connections()
-                if self.config.debug_mode:
-                    self._debug_print(f"定期清理连接池 - 线程: {threading.current_thread().name}")
+                self._debug_print(f"定期清理连接池 - 线程: {threading.current_thread().name}")
                 return current_time
             except Exception as e:
-                if self.config.debug_mode:
-                    self._debug_print(f"清理连接池失败: {type(e).__name__}: {e} - 线程: {threading.current_thread().name}")
+                self._debug_print(f"清理连接池失败: {type(e).__name__}: {e} - 线程: {threading.current_thread().name}")
         
         return last_cleanup_time
 
@@ -1312,8 +1279,7 @@ class UltimateURLScanner(DebugMixin):
         except queue.Empty:
             return None
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"队列获取异常: {type(e).__name__}: {e}")
+            self._debug_print(f"队列获取异常: {type(e).__name__}: {e}")
             return None
 
     def _safe_queue_task_done(self, queue_obj):
@@ -1321,8 +1287,7 @@ class UltimateURLScanner(DebugMixin):
         try:
             queue_obj.task_done()
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"task_done异常: {e}")
+            self._debug_print(f"task_done异常: {e}")
 
     def _process_url_result(self, url, depth, result, result_list, lock=None):
         """统一处理URL扫描结果"""
@@ -1332,16 +1297,14 @@ class UltimateURLScanner(DebugMixin):
                     result_list.append(result)
             else:
                 result_list.append(result)
-            if self.config.debug_mode:
-                self._debug_print(f"成功处理URL: {url}")
+            self._debug_print(f"成功处理URL: {url}")
             return True
         else:
-            if self.config.debug_mode:
-                self._debug_print(f"URL处理返回None: {url}")
+            self._debug_print(f"URL处理返回None: {url}")
             return False
 
     def _http_request(self, url):
-        """统一的HTTP请求和异常处理，返回response或异常信息 - 增强错误处理"""
+        """统一的HTTP请求和异常处理，返回response或异常信息 - 精简版"""
         max_retries = 3
         response = None
         last_exception = None
@@ -1349,20 +1312,17 @@ class UltimateURLScanner(DebugMixin):
         # 检查请求数量限制
         with self.request_count_lock:
             if self.request_count >= self.max_requests:
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 达到最大请求数限制: {self.request_count}/{self.max_requests}")
+                self._debug_print(f"[_http_request] 达到最大请求数限制: {self.request_count}/{self.max_requests}")
                 return None, Exception("达到最大请求数限制")
             self.request_count += 1
             current_request_count = self.request_count
         
-        if self.config.debug_mode:
-            self._debug_print(f"[_http_request] 开始请求: {url} (请求计数: {current_request_count}/{self.max_requests})")
-            self._debug_print(f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}")
+        self._debug_print(f"[_http_request] 开始请求: {url} (请求计数: {current_request_count}/{self.max_requests})")
+        self._debug_print(f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}")
         
         for attempt in range(max_retries):
             try:
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 第{attempt+1}次尝试请求: {url}")
+                self._debug_print(f"[_http_request] 第{attempt+1}次尝试请求: {url}")
                 
                 # 使用会话的超时设置，避免重复设置
                 response = self.session.get(
@@ -1372,55 +1332,29 @@ class UltimateURLScanner(DebugMixin):
                     allow_redirects=True
                 )
                 
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 请求成功: url={url}, status_code={response.status_code}, elapsed={response.elapsed}")
+                self._debug_print(f"[_http_request] 请求成功: url={url}, status_code={response.status_code}, elapsed={response.elapsed}")
                 
                 return response, None
                 
-            except requests.exceptions.ConnectionError as e:
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, 
+                   requests.exceptions.SSLError, requests.exceptions.RequestException) as e:
                 last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 连接错误 (第{attempt+1}次): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(0.5)
-                    
-            except requests.exceptions.Timeout as e:
-                last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 超时错误 (第{attempt+1}次): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(0.5)
-                    
-            except requests.exceptions.SSLError as e:
-                last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] SSL错误 (第{attempt+1}次): {e}")
+                self._debug_print(f"[_http_request] 网络异常 (第{attempt+1}次): {type(e).__name__}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(0.5)
                     
             except requests.exceptions.TooManyRedirects as e:
                 last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 重定向过多 (第{attempt+1}次): {e}")
-                # 重定向过多不重试
-                break
-                
-            except requests.exceptions.RequestException as e:
-                last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 请求异常 (第{attempt+1}次): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(0.5)
+                self._debug_print(f"[_http_request] 重定向过多: {e}")
+                break  # 重定向过多不重试
                     
             except Exception as e:
                 last_exception = e
-                if self.config.debug_mode:
-                    self._debug_print(f"[_http_request] 未知异常 (第{attempt+1}次): {type(e).__name__}: {e}")
+                self._debug_print(f"[_http_request] 未知异常 (第{attempt+1}次): {type(e).__name__}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(0.5)
         
-        if self.config.debug_mode:
-            self._debug_print(f"[_http_request] 所有重试失败，最终异常: {type(last_exception).__name__}: {last_exception}")
+        self._debug_print(f"[_http_request] 所有重试失败: {type(last_exception).__name__}: {last_exception}")
         
         return None, last_exception
 
@@ -1430,11 +1364,9 @@ class UltimateURLScanner(DebugMixin):
             if hasattr(self.session, 'poolmanager'):
                 # 清理连接池
                 self.session.poolmanager.clear()
-                if self.config.debug_mode:
-                    self._debug_print("连接池已清理")
+                self._debug_print("连接池已清理")
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"清理连接池时出错: {type(e).__name__}: {e}")
+            self._debug_print(f"清理连接池时出错: {type(e).__name__}: {e}")
 
     def get_request_stats(self):
         """获取请求统计信息"""
@@ -1449,8 +1381,7 @@ class UltimateURLScanner(DebugMixin):
 
     def _build_result(self, url, response=None, error=None, depth=0):
         """统一构建扫描结果字典 - 增强错误处理和调试信息"""
-        if self.config.debug_mode:
-            self._debug_print(f"[_build_result] 开始构建结果: url={url}, depth={depth}, response={response is not None}, error={error}")
+        self._debug_print(f"[_build_result] 开始构建结果: url={url}, depth={depth}, response={response is not None}, error={error}")
         
         start_time = time.time()
         elapsed = 0
@@ -1464,8 +1395,7 @@ class UltimateURLScanner(DebugMixin):
         headers_info = {}
         
         if response is not None:
-            if self.config.debug_mode:
-                self._debug_print(f"[_build_result] 处理响应对象: status_code={getattr(response, 'status_code', 'N/A')}")
+            self._debug_print(f"[_build_result] 处理响应对象: status_code={getattr(response, 'status_code', 'N/A')}")
             
             # 获取响应时间
             try:
@@ -1628,17 +1558,14 @@ class UltimateURLScanner(DebugMixin):
     def _extract_and_process_urls(self, content, base_url, depth):
         """提取和处理URL的统一方法"""
         if not content:
-            if self.config.debug_mode:
-                self._debug_print(f"无法获取内容，跳过URL提取: {base_url}")
+            self._debug_print(f"无法获取内容，跳过URL提取: {base_url}")
             return
         
         try:
             new_urls = self.url_matcher.extract_urls(content, base_url)
-            if self.config.debug_mode:
-                self._debug_print(f"从内容中提取到 {len(new_urls)} 个新URL")
+            self._debug_print(f"从内容中提取到 {len(new_urls)} 个新URL")
         except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"内容URL提取异常: {type(e).__name__}: {e}, url={base_url}, depth={depth}")
+            self._debug_print(f"内容URL提取异常: {type(e).__name__}: {e}, url={base_url}, depth={depth}")
             new_urls = []
         
         # 处理新URL
@@ -1657,11 +1584,9 @@ class UltimateURLScanner(DebugMixin):
                         skipped_count += 1
             except Exception as e:
                 error_count += 1
-                if self.config.debug_mode:
-                    self._debug_print(f"新URL入队异常: {type(e).__name__}: {e}, url={base_url}, depth={depth}, new_url={new_url}")
+                self._debug_print(f"新URL入队异常: {type(e).__name__}: {e}, url={base_url}, depth={depth}, new_url={new_url}")
         
-        if self.config.debug_mode:
-            self._debug_print(f"URL处理统计: 添加={added_count}, 跳过={skipped_count}, 错误={error_count}")
+        self._debug_print(f"URL处理统计: 添加={added_count}, 跳过={skipped_count}, 错误={error_count}")
 
     def scan_url(self, url, depth=0):
         """扫描单个URL，整合请求、内容处理、递归、重复判断 - 增强错误处理"""
@@ -2043,7 +1968,7 @@ class UltimateURLScanner(DebugMixin):
 
 def main():
     try:
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.3 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.4 ===")
         # 增加作者和GitHub地址
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan ===")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
