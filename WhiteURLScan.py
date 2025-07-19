@@ -118,24 +118,81 @@ class ScannerConfig(DebugMixin):
     @staticmethod
     def default_sensitive_patterns():
         return {
-            '身份证号': r'\b[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b',
+            # 国内敏感信息
+            '身份证号': r'\b[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b',
             '手机号': r'\b1(?:3\d|4[5-9]|5[0-35-9]|6[5-7]|7[0-8]|8\d|9[189])\d{8}\b',
-            'API密钥': r'(?i)(api[_-]?key|access[_-]?key|secret[_-]?key)\s*[:=]\s*[\'\"][a-zA-Z0-9_\-]{10,}[\'\"]',
-            'JWT令牌': r'eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9._-]{10,}\.[a-zA-Z0-9._-]{10,}',
-            '邮箱': r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(?!js|css|jpg|jpeg|png|ico|svg|gif|woff|ttf|eot|mp4|mp3|json|map|zip|rar|exe|dll|bin|swf|flv)[a-zA-Z]{2,10}\b',
-            '密码': r'(?i)(password|passwd|pwd|pass|passcode|userpass)\s*[:=]\s*[\'\"][^\'\"]{6,}[\'\"]',
-            '阿里云密钥': r'\bLTAI[a-zA-Z0-9]{12,20}\b',
-            '腾讯云密钥': r'\bAKID[a-zA-Z0-9]{16,28}\b',
-            '百度云密钥': r'\bAK[a-zA-Z0-9]{32}\b',
-            '数据库连接': r'(?i)(mysql|postgresql|mongodb|redis|oracle|sqlserver)://[a-zA-Z0-9_]+:[^@]+@[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_]+',
             '统一社会信用代码': r'\b[0-9A-Z]{18}\b',
             '企业注册号': r'\b\d{13,15}\b',
             '内网IP': r'\b(127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b',
+            'IP地址': r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b',
             'MAC地址': r'\b([a-fA-F0-9]{2}[:-]){5}[a-fA-F0-9]{2}\b',
-            'Windows路径': r'(?:[a-zA-Z]:\\\\(?:[^<>:"/\\\\|?*\r\n]+\\\\)*[^<>:"/\\\\|?*\r\n]*)',
-            'JDBC连接': r'jdbc:[a-z:]+://[a-zA-Z0-9_\-.:;=/@?,&]+',
+            
+            # 邮箱和认证
+            '邮箱': r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(?!js|css|jpg|jpeg|png|ico|svg|gif|woff|ttf|eot|mp4|mp3|json|map|zip|rar|exe|dll|bin|swf|flv)[a-zA-Z]{2,10}\b',
+            'Basic认证': r'\b(?:basic|bearer)\s+[a-zA-Z0-9=:_\+/-]{5,100}\b',
             'Authorization': r'(?i)(basic [a-z0-9=:_\+/-]{5,100}|bearer [a-z0-9_.=:_\+/-]{5,100})',
-            '敏感字段': r'(?i)(key|secret|token|config|auth|access|admin|ticket)\s*[:=]\s*[\'\"][^\'\"]{6,}[\'\"]',
+            
+            # 云服务密钥
+            '阿里云密钥': r'\bLTAI[a-zA-Z0-9]{12,20}\b',
+            '腾讯云密钥': r'\bAKID[a-zA-Z0-9]{16,28}\b',
+            '百度云密钥': r'\bAK[a-zA-Z0-9]{32}\b',
+            'AWS访问密钥': r'\bA[SK]IA[0-9A-Z]{16}\b',
+            'AWS密钥ID': r'(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}',
+            'Google API密钥': r'\bAIza[0-9A-Za-z\-_]{35}\b',
+            'Firebase密钥': r'\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}\b',
+            'Google验证码': r'\b6L[0-9A-Za-z\-_]{38}\b',
+            'Google OAuth': r'\bya29\.[0-9A-Za-z\-_]+\b',
+            
+            # 第三方服务密钥
+            'Twilio API密钥': r'\bSK[0-9a-fA-F]{32}\b',
+            'Twilio账户SID': r'\bAC[a-zA-Z0-9_\-]{32}\b',
+            'Twilio应用SID': r'\bAP[a-zA-Z0-9_\-]{32}\b',
+            'Stripe标准API': r'\bsk_live_[0-9a-zA-Z]{24}\b',
+            'Stripe限制API': r'\brk_live_[0-9a-zA-Z]{24}\b',
+            'GitHub访问令牌': r'[a-zA-Z0-9_-]*:[a-zA-Z0-9_\-]+@github\.com',
+            'Slack令牌': r'\bxox[baprs]-[0-9a-zA-Z]{10,48}\b',
+            'Slack Webhook': r'https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}',
+            'Mailgun API密钥': r'\bkey-[0-9a-zA-Z]{32}\b',
+            'Square访问令牌': r'\bsqOatp-[0-9A-Za-z\-_]{22}\b',
+            'Square OAuth密钥': r'\bsq0csp-[ 0-9A-Za-z\-_]{43}\b',
+            'PayPal Braintree令牌': r'\baccess_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}\b',
+            'Facebook访问令牌': r'\bEAACEdEose0cBA[0-9A-Za-z]+\b',
+            
+            # 社交媒体密钥
+            'Facebook客户端ID': r'(?i)(facebook|fb)(.{0,20})?[\'"][0-9]{13,17}[\'"]',
+            'Facebook密钥': r'(?i)(facebook|fb)(.{0,20})?[\'"][0-9a-f]{32}[\'"]',
+            'Twitter OAuth': r'[t|T][w|W][i|I][t|T][t|T][e|E][r|R].{0,30}[\'"\s][0-9a-zA-Z]{35,44}[\'"\s]',
+            'Twitter密钥': r'(?i)twitter(.{0,20})?[\'"][0-9a-z]{35,44}[\'"]',
+            'LinkedIn密钥': r'(?i)linkedin(.{0,20})?[\'"][0-9a-z]{16}[\'"]',
+            'Github密钥': r'(?i)github(.{0,20})?[\'"][0-9a-zA-Z]{35,40}[\'"]',
+            
+            # 云存储和数据库
+            '阿里云OSS': r'[\\w.]\.oss\.aliyuncs\.com',
+            'AWS S3': r's3\.amazonaws\.com[/]+|[a-zA-Z0-9_-]*\.s3\.amazonaws\.com',
+            'AWS S3 URL': r'[a-zA-Z0-9-\.\_]+\.s3\.amazonaws\.com|s3://[a-zA-Z0-9-\.\_]+|s3-[a-zA-Z0-9-\.\_\/]+|s3\.amazonaws\.com/[a-zA-Z0-9-\.\_]+|s3\.console\.aws\.amazon\.com/s3/buckets/[a-zA-Z0-9-\.\_]+',
+            'Cloudinary认证': r'cloudinary://[0-9]{15}:[0-9A-Za-z]+@[a-z]+',
+            '数据库连接': r'(?i)(mysql|postgresql|mongodb|redis|oracle|sqlserver)://[a-zA-Z0-9_]+:[^@]+@[a-zA-Z0-9.-]+:[0-9]+/[a-zA-Z0-9_]+',
+            'JDBC连接': r'jdbc:[a-z:]+://[a-zA-Z0-9_\-.:;=/@?,&]+',
+            
+            # 密钥和令牌
+            'JWT令牌': r'\bey[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*\b',
+            'RSA私钥': r'-----BEGIN RSA PRIVATE KEY-----',
+            'SSH私钥': r'-----BEGIN [^\s]+ PRIVATE KEY-----',
+            'PGP私钥': r'-----BEGIN PGP PRIVATE KEY BLOCK-----',
+            'SSH私钥块': r'([-]+BEGIN [^\s]+ PRIVATE KEY[-]+[\s]*[^-]*[-]+END [^\s]+ PRIVATE KEY[-]+)',
+            
+            # 通用敏感字段
+            'API密钥': r'(?i)(api[_-]?key|access[_-]?key|secret[_-]?key)\s*[:=]\s*[\'\"][a-zA-Z0-9_\-]{10,}[\'\"]',
+            '密码': r'(?i)(password|passwd|pwd|pass|passcode|userpass)\s*[:=]\s*[\'\"][^\'\"]{6,}[\'\"]',
+            '密钥字段': r'(?i)(key|secret|token|config|auth|access|admin|ticket)\s*[:=]\s*[\'\"][^\'\"]{6,}[\'\"]',
+            'OSS云存储桶': r'([A|a]ccess[K|k]ey[I|i]d|[A|a]ccess[K|k]ey[S|s]ecret|[Aa]ccess-[Kk]ey)|[A|a]ccess[K|k]ey',
+            'Secret Key': r'[Ss](ecret|ECRET)_?[Kk](ey|EY)',
+            
+            # 文件路径
+            'Windows路径': r'(?:[a-zA-Z]:\\\\(?:[^<>:"/\\\\|?*\r\n]+\\\\)*[^<>:"/\\\\|?*\r\n]*)',
+            
+            # 通用密钥模式
+            'Secret Key OR Private API': r'(access_key|Access-Key|access_token|SecretKey|SecretId|admin_pass|admin_user|algolia_admin_key|algolia_api_key|alias_pass|alicloud_access_key|amazon_secret_access_key|amazonaws|ansible_vault_password|aos_key|api_key|api_key_secret|api_key_sid|api_secret|api\.googlemaps|AIza|apidocs|apikey|apiSecret|app_debug|app_id|app_key|app_log_level|app_secret|appkey|appkeysecret|application_key|appsecret|appspot|auth_token|authorizationToken|authsecret|aws_access|aws_access_key_id|aws_bucket|aws_key|aws_secret|aws_secret_key|aws_token|AWSSecretKey|b2_app_key|bashrc|password|bintray_apikey|bintray_gpg_password|bintray_key|bintraykey|bluemix_api_key|bluemix_pass|browserstack_access_key|bucket_password|bucketeer_aws_access_key_id|bucketeer_aws_secret_access_key|built_branch_deploy_key|bx_password|cache_driver|cache_s3_secret_key|cattle_access_key|cattle_secret_key|certificate_password|ci_deploy_password|client_secret|client_zpk_secret_key|clojars_password|cloud_api_key|cloud_watch_aws_access_key|cloudant_password|cloudflare_api_key|cloudflare_auth_key|cloudinary_api_secret|cloudinary_name|codecov_token|config|conn\.login|connectionstring|consumer_key|consumer_secret|credentials|cypress_record_key|database_password|database_schema_test|datadog_api_key|datadog_app_key|db_password|db_server|db_username|dbpasswd|dbpassword|dbuser|deploy_password|digitalocean_ssh_key_body|digitalocean_ssh_key_ids|docker_hub_password|docker_key|docker_pass|docker_passwd|docker_password|dockerhub_password|dockerhubpassword|dot|files|dotfiles|droplet_travis_password|dynamoaccesskeyid|dynamosecretaccesskey|elastica_host|elastica_port|elasticsearch_password|encryption_key|encryption_password|env\.heroku_api_key|env\.sonatype_password|eureka\.awssecretkey)[a-z0-9_.\-,]{0,25}[a-z0-9A-Z_ .\-,]{0,25}(=|>|:=|\||:|<=|=>|:).{0,5}[\'"]([0-9a-zA-Z\-_=]{6,64})[\'"]',
         }
 
 # ====================== URL拼接模块 ======================
@@ -589,7 +646,7 @@ class SensitiveDetector(DebugMixin):
         self.debug_mode = debug_mode
     
     def detect(self, content):
-        """检测响应中的敏感信息 - 增强国内重点"""
+        """检测响应中的敏感信息 - 返回结构化格式"""
         if not content:
             if self.debug_mode:
                 self._debug_print("内容为空，跳过敏感信息检测")
@@ -605,14 +662,25 @@ class SensitiveDetector(DebugMixin):
             try:
                 matches = re.findall(pattern, text_content)
                 if matches:
-                    # 去重并限制显示数量
+                    # 去重并获取样本
                     unique_matches = set(matches)
-                    sample = list(unique_matches)[:3]  # 只显示前3个样本
-                    detected_item = f"{name} (x{len(unique_matches)}: {', '.join(sample)}{'...' if len(unique_matches) > 3 else ''}"
+                    count = len(unique_matches)
+                    
+                    # 获取样本（最多5个）
+                    samples = list(unique_matches)
+                
+                    # 构建结构化结果
+                    detected_item = {
+                        'type': name,  # 敏感信息类型
+                        'count': count,  # 发现数量
+                        'samples': samples,  # 样本清单
+                        'total': len(unique_matches)  # 总数量
+                    }
+                
                     detected.append(detected_item)
                     
                     if self.debug_mode:
-                        self._debug_print(f"发现敏感信息: {detected_item}")
+                        self._debug_print(f"发现敏感信息: {name} x{count} 个样本")
                 else:
                     if self.debug_mode:
                         self._debug_print(f"未发现敏感信息: {name}")
@@ -643,6 +711,19 @@ class OutputHandler(DebugMixin):
             
             if self.config.debug_mode:
                 self._debug_print(f"输出文件已初始化: {config.output_file}")
+    
+    def _format_sensitive_data_for_csv(self, sensitive_raw):
+        """格式化敏感信息数据用于CSV保存"""
+        if not sensitive_raw:
+            return ""
+        
+        sensitive_items = []
+        for item in sensitive_raw:
+            if isinstance(item, dict):
+                sensitive_items.append(f"{item.get('type', '未知')}:{item.get('count', 0)}")
+            else:
+                sensitive_items.append(str(item))
+        return "|".join(sensitive_items)
     
     def get_status_color(self, status):
         """获取状态码对应的颜色"""
@@ -710,17 +791,25 @@ class OutputHandler(DebugMixin):
         # 敏感信息显示
         sensitive_str = ""
         if result['sensitive']:
-            # 只显示【类型X数量】，不展示具体内容和字段名
+            # 处理结构化敏感信息格式
             sensitive_types = []
-            for s in result['sensitive']:
-                # 兼容旧格式（如 "邮箱 (x1: xxx..."），只取类型和数量
-                if "(" in s and "x" in s:
-                    t = s.split('(')[0].strip()
-                    n = s.split('x')[-1].split(':')[0].replace(')', '').strip()
-                    sensitive_types.append(f"{t}X{n}")
+            for item in result['sensitive']:
+                if isinstance(item, dict):
+                    # 结构化格式：字典结构
+                    sensitive_type = item.get('type', '未知')
+                    count = item.get('count', 0)
+                    samples = item.get('samples', [])
+                    
+                    # 构建显示格式：类型X数量
+                    display_format = f"{sensitive_type}X{count}"
+                    sensitive_types.append(display_format)
+                    
+                    if self.config.debug_mode:
+                        self._debug_print(f"处理敏感信息: {sensitive_type} x{count} 个样本")
                 else:
-                    # 只保留类型
-                    sensitive_types.append(s)
+                    # 其他格式，直接转为字符串
+                    sensitive_types.append(str(item))
+            
             sensitive_str = Fore.RED + Style.BRIGHT + f" -> [{'，'.join(sensitive_types)}]"
 
             if self.config.debug_mode:
@@ -771,6 +860,10 @@ class OutputHandler(DebugMixin):
         if self.config.output_file:
             with open(self.config.output_file, 'a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
+                
+                # 处理敏感信息数据用于CSV保存
+                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                
                 writer.writerow([
                     result['url'],
                     result['status'],
@@ -778,7 +871,7 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    result['sensitive'],  # 保存为完整内容
+                    sensitive_data,  # 保存结构化敏感信息数据
                     '是' if result.get('is_duplicate', False) else '否',  # 添加重复标记列
                     result.get('link_type', '')  # 新增：链接类型
                 ])
@@ -804,6 +897,10 @@ class OutputHandler(DebugMixin):
                     link_type = ext
                 else:
                     link_type = "接口"
+                
+                # 处理敏感信息数据用于CSV保存
+                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                
                 writer.writerow([
                     result['url'],
                     result['status'],
@@ -811,7 +908,7 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    result['sensitive'],
+                    sensitive_data,  # 保存结构化敏感信息数据
                     '是' if result.get('is_duplicate', False) else '否',
                     result.get('link_type', link_type)  # 新增：链接类型
                 ])
@@ -819,14 +916,9 @@ class OutputHandler(DebugMixin):
         if self.config.debug_mode:
             self._debug_print(f"最终报告生成完成: {report_file}")
         
-        # print(results)
-        # 统计重复URL信息
-        duplicate_count = len([r for r in results if r.get('is_duplicate', True)])
-        total_duplicates = len([r for r in results if not r.get('is_duplicate', True)])
-        
+        # 扫描完成
         with output_lock:
             print(f"\n\n扫描完成! 共扫描 {len(results)} 个URL")
-            print(f"重复URL统计: {duplicate_count} 个重复结果, {total_duplicates} 个唯一URL")
             print(f"完整报告已保存至: {report_file}")
 
     def append_results(self, results, report_file="full_report.csv"):
@@ -840,6 +932,10 @@ class OutputHandler(DebugMixin):
                     link_type = ext
                 else:
                     link_type = "接口"
+                
+                # 处理敏感信息数据用于CSV保存
+                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                
                 writer.writerow([
                     result['url'],
                     result['status'],
@@ -847,7 +943,7 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    result['sensitive'],
+                    sensitive_data,  # 保存结构化敏感信息数据
                     '是' if result.get('is_duplicate', False) else '否',
                     result.get('link_type', link_type)  # 新增：链接类型
                 ])
@@ -899,12 +995,20 @@ class UltimateURLScanner(DebugMixin):
             self._debug_print("扫描器初始化完成")
 
     def _http_request(self, url):
-        """统一的HTTP请求和异常处理，返回response或异常信息"""
+        """统一的HTTP请求和异常处理，返回response或异常信息 - 增强错误处理"""
         max_retries = 3
         response = None
         last_exception = None
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[_http_request] 开始请求: {url}")
+            self._debug_print(f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}")
+        
         for attempt in range(max_retries):
             try:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 第{attempt+1}次尝试请求: {url}")
+                
                 response = self.session.get(
                     url,
                     proxies=self.config.proxy,
@@ -912,17 +1016,64 @@ class UltimateURLScanner(DebugMixin):
                     verify=False,
                     allow_redirects=True
                 )
+                
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 请求成功: status_code={response.status_code}, elapsed={response.elapsed}")
+                
                 return response, None
+                
+            except requests.exceptions.ConnectionError as e:
+                last_exception = e
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 连接错误 (第{attempt+1}次): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    
+            except requests.exceptions.Timeout as e:
+                last_exception = e
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 超时错误 (第{attempt+1}次): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    
+            except requests.exceptions.SSLError as e:
+                last_exception = e
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] SSL错误 (第{attempt+1}次): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    
+            except requests.exceptions.TooManyRedirects as e:
+                last_exception = e
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 重定向过多 (第{attempt+1}次): {e}")
+                # 重定向过多不重试
+                break
+                
+            except requests.exceptions.RequestException as e:
+                last_exception = e
+                if self.config.debug_mode:
+                    self._debug_print(f"[_http_request] 请求异常 (第{attempt+1}次): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    
             except Exception as e:
                 last_exception = e
                 if self.config.debug_mode:
-                    self._debug_print(f"HTTP请求失败，重试第{attempt+1}次: {e}")
+                    self._debug_print(f"[_http_request] 未知异常 (第{attempt+1}次): {type(e).__name__}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(0.5)
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[_http_request] 所有重试失败，最终异常: {type(last_exception).__name__}: {last_exception}")
+        
         return None, last_exception
 
     def _build_result(self, url, response=None, error=None, depth=0):
-        """统一构建扫描结果字典"""
+        """统一构建扫描结果字典 - 增强错误处理和调试信息"""
+        if self.config.debug_mode:
+            self._debug_print(f"[_build_result] 开始构建结果: url={url}, depth={depth}, response={response is not None}, error={error}")
+        
         start_time = time.time()
         elapsed = 0
         redirect_chain = []
@@ -931,47 +1082,149 @@ class UltimateURLScanner(DebugMixin):
         status = 'Error'
         title = ''
         content = b''
+        content_type = ''
+        headers_info = {}
+        
         if response is not None:
+            if self.config.debug_mode:
+                self._debug_print(f"[_build_result] 处理响应对象: status_code={getattr(response, 'status_code', 'N/A')}")
+            
+            # 获取响应时间
             try:
                 elapsed = getattr(response, 'elapsed', None)
                 if elapsed:
                     elapsed = elapsed.total_seconds()
                 else:
                     elapsed = 0
-            except Exception:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 响应时间: {elapsed}秒")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取响应时间失败: {e}")
                 elapsed = 0
+            
+            # 获取重定向链
             try:
                 redirect_chain = [r.url for r in response.history] if response.history else []
-            except Exception:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 重定向链: {len(redirect_chain)} 个重定向")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取重定向链失败: {e}")
                 redirect_chain = []
+            
+            # 获取最终URL
             try:
                 final_url = response.url
-            except Exception:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 最终URL: {final_url}")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取最终URL失败: {e}, 使用原始URL: {url}")
                 final_url = url
+            
+            # 获取响应内容
             try:
                 content = getattr(response, 'content', b'')
-            except Exception:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 响应内容长度: {len(content)} 字节")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取响应内容失败: {e}")
                 content = b''
+            
+            # 获取响应头信息
+            try:
+                headers_info = dict(response.headers) if hasattr(response, 'headers') else {}
+                content_type = headers_info.get('Content-Type', '')
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] Content-Type: {content_type}")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取响应头失败: {e}")
+                headers_info = {}
+                content_type = ''
+            
+            # 检测敏感信息
             try:
                 sensitive_info = self.sensitive_detector.detect(content)
-            except Exception:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 敏感信息检测结果: {len(sensitive_info)} 项")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 敏感信息检测失败: {e}")
                 sensitive_info = []
-            status = getattr(response, 'status_code', 'Error')
+            
+            # 获取状态码
+            try:
+                status = getattr(response, 'status_code', 'Error')
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 状态码: {status}")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 获取状态码失败: {e}")
+                status = 'Error'
+            
             # 提取标题
             try:
-                if 'text/html' in response.headers.get('Content-Type', ''):
+                if content and content_type and 'text/html' in content_type:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[_build_result] 开始解析HTML标题")
+                    
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-                        if 'xml' in response.headers.get('Content-Type', '').lower():
+                        warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+                        
+                        if 'xml' in content_type.lower():
                             soup = BeautifulSoup(content, 'lxml-xml')
                         else:
                             soup = BeautifulSoup(content, 'html.parser')
+                    
                     t = soup.title
-                    title = t.string.strip() if t else ''
-            except Exception:
+                    if t and t.string:
+                        title = t.string.strip()
+                        if self.config.debug_mode:
+                            self._debug_print(f"[_build_result] 提取到标题: {title[:50]}...")
+                    else:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[_build_result] 未找到标题标签")
+                else:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[_build_result] 跳过标题提取: content_type={content_type}, content_length={len(content)}")
+            except Exception as e:
+                if self.config.debug_mode:
+                    self._debug_print(f"[_build_result] 标题提取失败: {e}")
                 title = ''
+        
         elif error is not None:
-            status = f"Error: {str(error)}"
+            if self.config.debug_mode:
+                self._debug_print(f"[_build_result] 处理错误: {type(error).__name__}: {error}")
+            
+            # 详细错误信息
+            error_type = type(error).__name__
+            error_msg = str(error)
+            
+            if isinstance(error, requests.exceptions.ConnectionError):
+                status = f"ConnectionError: {error_msg}"
+            elif isinstance(error, requests.exceptions.Timeout):
+                status = f"TimeoutError: {error_msg}"
+            elif isinstance(error, requests.exceptions.SSLError):
+                status = f"SSLError: {error_msg}"
+            elif isinstance(error, requests.exceptions.TooManyRedirects):
+                status = f"TooManyRedirects: {error_msg}"
+            elif isinstance(error, requests.exceptions.RequestException):
+                status = f"RequestError: {error_msg}"
+            else:
+                status = f"Error({error_type}): {error_msg}"
+            
+            if self.config.debug_mode:
+                self._debug_print(f"[_build_result] 最终错误状态: {status}")
+        else:
+            if self.config.debug_mode:
+                self._debug_print(f"[_build_result] 警告: response和error都为None")
+            status = "Error: No response and no error"
+        
+        # 构建结果字典
         result = {
             'url': final_url,
             'status': status,
@@ -980,154 +1233,326 @@ class UltimateURLScanner(DebugMixin):
             'redirects': ' → '.join([str(x) for x in redirect_chain]),
             'depth': depth,
             'time': elapsed,
-            'sensitive': sensitive_info,
-            'is_duplicate': False
+            'sensitive': sensitive_info,  # 用于显示
+            'sensitive_raw': sensitive_info,  # 保存原始结构化数据
+            'is_duplicate': False,
+            'content_type': content_type,  # 新增：内容类型
+            'headers_count': len(headers_info),  # 新增：响应头数量
+            'error_type': type(error).__name__ if error else None,  # 新增：错误类型
+            'original_url': url,  # 新增：原始URL
         }
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[_build_result] 结果构建完成: status={status}, length={len(content)}, sensitive_count={len(sensitive_info)}")
+        
         return result
 
     def scan_url(self, url, depth=0):
-        """扫描单个URL，整合请求、内容处理、递归、重复判断"""
+        """扫描单个URL，整合请求、内容处理、递归、重复判断 - 增强错误处理"""
+        if self.config.debug_mode:
+            self._debug_print(f"[scan_url] 开始扫描: url={url}, depth={depth}")
+        
+        # 检查扫描状态
         if not self.running or depth > self.config.max_depth:
             if self.config.debug_mode:
-                self._debug_print(f"跳过URL扫描: {url} (深度: {depth}, 最大深度: {self.config.max_depth})")
+                self._debug_print(f"[scan_url] 跳过URL扫描: {url} (深度: {depth}, 最大深度: {self.config.max_depth}, running: {self.running})")
             return None
+        
+        # 检查URL是否应该跳过
         if self.url_matcher.should_skip_url(url):
             if self.config.debug_mode:
-                self._debug_print(f"URL被过滤跳过: {url}")
+                self._debug_print(f"[scan_url] URL被过滤跳过: {url}")
             return None
+        
         # url_scope_mode 0: 只允许主域/子域
         if self.config.url_scope_mode == 0:
             if not self.url_matcher.is_valid_domain(url):
                 if self.config.debug_mode:
-                    self._debug_print(f"外部URL跳过: {url}")
+                    self._debug_print(f"[scan_url] 外部URL跳过: {url}")
                 return None
+        
         # url_scope_mode 1: 外部链接访问一次，不递归
         elif self.config.url_scope_mode == 1:
             if not self.url_matcher.is_valid_domain(url):
                 with UltimateURLScanner.visited_urls_lock:
                     if url in UltimateURLScanner.visited_urls_global:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[scan_url] 外部URL已访问过: {url}")
                         return None
                     UltimateURLScanner.visited_urls_global.add(url)
                 if self.config.debug_mode:
-                    self._debug_print(f"外部URL只访问一次: {url}")
+                    self._debug_print(f"[scan_url] 外部URL只访问一次: {url}")
                 response, error = self._http_request(url)
                 result = self._build_result(url, response, error, depth)
                 try:
                     self.output_handler.realtime_output(result)
-                except Exception:
-                    pass
-                return result
-        if self.config.debug_mode:
-            self._debug_print(f"开始扫描URL: {url} (深度: {depth})")
-        time.sleep(self.config.delay)
-        response, error = self._http_request(url)
-        result = self._build_result(url, response, error, depth)
-        try:
-            self.output_handler.realtime_output(result)
-        except Exception:
-            pass
-        # 递归内容提取
-        if response is not None and depth < self.config.max_depth:
-            content = getattr(response, 'content', b'')
-            content_type = response.headers.get('Content-Type', '') if hasattr(response, 'headers') else ''
-            if content:
-                if self.config.debug_mode:
-                    self._debug_print(f"开始从内容提取URL: {result['url']} (内容类型: {content_type})")
-                try:
-                    new_urls = self.url_matcher.extract_urls(content, result['url'])
                 except Exception as e:
                     if self.config.debug_mode:
-                        self._debug_print(f"[内容URL提取] 异常: {e}, url={url}, depth={depth}")
-                    new_urls = []
+                        self._debug_print(f"[scan_url] 外部URL输出失败: {e}")
+                return result
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[scan_url] 开始扫描URL: {url} (深度: {depth})")
+        
+        # 延迟处理
+        time.sleep(self.config.delay)
+        
+        # HTTP请求
+        response, error = self._http_request(url)
+        
+        # 构建结果
+        result = self._build_result(url, response, error, depth)
+        
+        # 实时输出
+        try:
+            self.output_handler.realtime_output(result)
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"[scan_url] 实时输出失败: {e}")
+        
+        # 递归内容提取
+        if response is not None and depth < self.config.max_depth:
+            try:
+                content = getattr(response, 'content', b'')
+                content_type = response.headers.get('Content-Type', '') if hasattr(response, 'headers') else ''
+                
                 if self.config.debug_mode:
-                    self._debug_print(f"从内容中提取到 {len(new_urls)} 个新URL")
-                added_count = 0
-                for new_url in new_urls:
-                    with UltimateURLScanner.visited_urls_lock:
+                    self._debug_print(f"[scan_url] 开始从内容提取URL: {result['url']} (内容类型: {content_type}, 内容长度: {len(content)})")
+                
+                if content:
+                    try:
+                        new_urls = self.url_matcher.extract_urls(content, result['url'])
+                        if self.config.debug_mode:
+                            self._debug_print(f"[scan_url] 从内容中提取到 {len(new_urls)} 个新URL")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[scan_url] 内容URL提取异常: {type(e).__name__}: {e}, url={url}, depth={depth}")
+                        new_urls = []
+                    
+                    # 处理新URL
+                    added_count = 0
+                    skipped_count = 0
+                    error_count = 0
+                    
+                    for new_url in new_urls:
                         try:
-                            if new_url not in UltimateURLScanner.visited_urls_global and not self.url_matcher.should_skip_url(new_url):
-                                self.url_queue.put((new_url, depth + 1))
-                                UltimateURLScanner.visited_urls_global.add(new_url)
-                                added_count += 1
+                            with UltimateURLScanner.visited_urls_lock:
+                                if new_url not in UltimateURLScanner.visited_urls_global and not self.url_matcher.should_skip_url(new_url):
+                                    self.url_queue.put((new_url, depth + 1))
+                                    UltimateURLScanner.visited_urls_global.add(new_url)
+                                    added_count += 1
+                                else:
+                                    skipped_count += 1
                         except Exception as e:
+                            error_count += 1
                             if self.config.debug_mode:
-                                self._debug_print(f"[新URL入队] 异常: {e}, url={url}, depth={depth}, new_url={new_url}")
+                                self._debug_print(f"[scan_url] 新URL入队异常: {type(e).__name__}: {e}, url={url}, depth={depth}, new_url={new_url}")
+                    
+                    if self.config.debug_mode:
+                        self._debug_print(f"[scan_url] URL处理统计: 添加={added_count}, 跳过={skipped_count}, 错误={error_count}")
+                else:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[scan_url] 无法获取内容，跳过URL提取: {result['url']}")
+                        
+            except Exception as e:
                 if self.config.debug_mode:
-                    self._debug_print(f"将 {added_count} 个新URL加入队列")
-            else:
-                if self.config.debug_mode:
-                    self._debug_print(f"无法获取内容，跳过URL提取: {result['url']}")
+                    self._debug_print(f"[scan_url] 递归处理异常: {type(e).__name__}: {e}, url={url}, depth={depth}")
+        else:
+            if self.config.debug_mode:
+                if response is None:
+                    self._debug_print(f"[scan_url] 响应为空，跳过递归")
+                elif depth >= self.config.max_depth:
+                    self._debug_print(f"[scan_url] 达到最大深度，跳过递归: depth={depth}, max_depth={self.config.max_depth}")
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[scan_url] 扫描完成: url={url}, status={result.get('status', 'Unknown')}")
+        
         return result
 
     def worker(self):
+        """工作线程 - 增强错误处理"""
+        thread_name = threading.current_thread().name
         if self.config.debug_mode:
-            self._debug_print(f"工作线程启动: {threading.current_thread().name}")
+            self._debug_print(f"[worker] 工作线程启动: {thread_name}")
+        
+        processed_count = 0
+        error_count = 0
+        
         while self.running:
             try:
+                # 检查是否达到最大URL数量
                 if self.output_handler.url_count >= self.config.max_urls:
                     if self.config.debug_mode:
-                        self._debug_print("达到最大URL数量，停止工作线程")
+                        self._debug_print(f"[worker] 达到最大URL数量，停止工作线程: {thread_name}")
                     self.running = False
                     break
-                url, depth = self.url_queue.get(timeout=10)
-                if self.config.debug_mode:
-                    self._debug_print(f"工作线程处理URL: {url} (深度: {depth})")
-                result = self.scan_url(url, depth)
-                if result:
-                    with self.lock:
-                        self.results.append(result)
-                self.url_queue.task_done()
-            except queue.Empty:
-                if not self.running:
-                    if self.config.debug_mode:
-                        self._debug_print("工作线程队列为空，退出")
-                    break
-            except Exception as e:
-                if self.config.debug_mode:
-                    self._debug_print(f"工作线程错误: {str(e)}")
-                self.url_queue.task_done()
-
-    def external_worker(self):
-        if self.config.debug_mode:
-            self._debug_print(f"外部URL线程启动: {threading.current_thread().name}")
-        while self.external_running or not self.external_url_queue.empty():
-            try:
-                ext_url = self.external_url_queue.get(timeout=2)
-                if self.config.debug_mode:
-                    self._debug_print(f"外部URL线程处理: {ext_url}")
-                result = self.scan_url(ext_url, depth=0)
-                if result:
-                    with self.lock:
-                        self.external_results.append(result)
-                self.external_url_queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                if self.config.debug_mode:
-                    self._debug_print(f"外部URL线程错误: {str(e)}")
-                self.external_url_queue.task_done()
-
-    def start_scan(self):
-        if self.config.debug_mode:
-            self._debug_print("开始扫描过程")
-        self.url_queue.put((self.config.start_url, 0))
-        if self.config.debug_mode:
-            self._debug_print(f"起始URL已加入队列: {self.config.start_url}")
-        with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
-            if self.config.debug_mode:
-                self._debug_print(f"创建线程池，工作线程数: {self.config.max_workers}")
-            workers = [executor.submit(self.worker) for _ in range(min(self.config.max_workers, 100))]
-            if self.config.debug_mode:
-                self._debug_print(f"已启动 {len(workers)} 个工作线程")
-            self.url_queue.join()
-            self.running = False
-            if self.config.debug_mode:
-                self._debug_print("所有任务已完成，停止工作线程")
-            for worker in workers:
+                
+                # 从队列获取URL
                 try:
-                    worker.cancel()
+                    url, depth = self.url_queue.get(timeout=10)
+                    if self.config.debug_mode:
+                        self._debug_print(f"[worker] 处理URL: {url} (深度: {depth}) - 线程: {thread_name}")
+                except queue.Empty:
+                    if not self.running:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[worker] 工作线程队列为空，退出: {thread_name}")
+                        break
+                    continue
+                
+                # 扫描URL
+                try:
+                    result = self.scan_url(url, depth)
+                    if result:
+                        with self.lock:
+                            self.results.append(result)
+                            processed_count += 1
+                        if self.config.debug_mode:
+                            self._debug_print(f"[worker] 成功处理URL: {url} - 线程: {thread_name}")
+                    else:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[worker] URL处理返回None: {url} - 线程: {thread_name}")
+                except Exception as e:
+                    error_count += 1
+                    if self.config.debug_mode:
+                        self._debug_print(f"[worker] URL扫描异常: {type(e).__name__}: {e}, url={url}, depth={depth}, 线程={thread_name}")
+                
+                # 标记任务完成
+                try:
+                    self.url_queue.task_done()
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[worker] task_done异常: {e}, 线程: {thread_name}")
+                        
+            except Exception as e:
+                error_count += 1
+                if self.config.debug_mode:
+                    self._debug_print(f"[worker] 工作线程主循环异常: {type(e).__name__}: {e}, 线程: {thread_name}")
+                try:
+                    self.url_queue.task_done()
                 except:
                     pass
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[worker] 工作线程结束: {thread_name}, 处理={processed_count}, 错误={error_count}")
+
+    def external_worker(self):
+        """外部URL工作线程 - 增强错误处理"""
+        thread_name = threading.current_thread().name
+        if self.config.debug_mode:
+            self._debug_print(f"[external_worker] 外部URL线程启动: {thread_name}")
+        
+        processed_count = 0
+        error_count = 0
+        
+        while self.external_running or not self.external_url_queue.empty():
+            try:
+                # 从队列获取外部URL
+                try:
+                    ext_url = self.external_url_queue.get(timeout=2)
+                    if self.config.debug_mode:
+                        self._debug_print(f"[external_worker] 处理外部URL: {ext_url} - 线程: {thread_name}")
+                except queue.Empty:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[external_worker] 外部URL队列为空，继续等待 - 线程: {thread_name}")
+                    continue
+                
+                # 扫描外部URL
+                try:
+                    result = self.scan_url(ext_url, depth=0)
+                    if result:
+                        with self.lock:
+                            self.external_results.append(result)
+                            processed_count += 1
+                        if self.config.debug_mode:
+                            self._debug_print(f"[external_worker] 成功处理外部URL: {ext_url} - 线程: {thread_name}")
+                    else:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[external_worker] 外部URL处理返回None: {ext_url} - 线程: {thread_name}")
+                except Exception as e:
+                    error_count += 1
+                    if self.config.debug_mode:
+                        self._debug_print(f"[external_worker] 外部URL扫描异常: {type(e).__name__}: {e}, url={ext_url}, 线程={thread_name}")
+                
+                # 标记任务完成
+                try:
+                    self.external_url_queue.task_done()
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[external_worker] task_done异常: {e}, 线程: {thread_name}")
+                        
+            except Exception as e:
+                error_count += 1
+                if self.config.debug_mode:
+                    self._debug_print(f"[external_worker] 外部URL线程主循环异常: {type(e).__name__}: {e}, 线程: {thread_name}")
+                try:
+                    self.external_url_queue.task_done()
+                except:
+                    pass
+        
+        if self.config.debug_mode:
+            self._debug_print(f"[external_worker] 外部URL线程结束: {thread_name}, 处理={processed_count}, 错误={error_count}")
+
+    def start_scan(self):
+        """开始扫描过程 - 增强错误处理"""
+        if self.config.debug_mode:
+            self._debug_print(f"[start_scan] 开始扫描过程: start_url={self.config.start_url}")
+        
+        try:
+            # 添加起始URL到队列
+            self.url_queue.put((self.config.start_url, 0))
+            if self.config.debug_mode:
+                self._debug_print(f"[start_scan] 起始URL已加入队列: {self.config.start_url}")
+            
+            # 创建线程池
+            with ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
+                if self.config.debug_mode:
+                    self._debug_print(f"[start_scan] 创建线程池，工作线程数: {self.config.max_workers}")
+                
+                # 启动工作线程
+                workers = []
+                try:
+                    workers = [executor.submit(self.worker) for _ in range(min(self.config.max_workers, 100))]
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 已启动 {len(workers)} 个工作线程")
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 启动工作线程失败: {type(e).__name__}: {e}")
+                    raise
+                
+                # 等待所有任务完成
+                try:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 等待队列任务完成...")
+                    self.url_queue.join()
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 队列任务已完成")
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"[start_scan] 等待队列完成时异常: {type(e).__name__}: {e}")
+                
+                # 停止扫描
+                self.running = False
+                if self.config.debug_mode:
+                    self._debug_print(f"[start_scan] 扫描已停止，取消工作线程")
+                
+                # 取消工作线程
+                for i, worker in enumerate(workers):
+                    try:
+                        worker.cancel()
+                        if self.config.debug_mode:
+                            self._debug_print(f"[start_scan] 已取消工作线程 {i+1}")
+                    except Exception as e:
+                        if self.config.debug_mode:
+                            self._debug_print(f"[start_scan] 取消工作线程 {i+1} 失败: {e}")
+                
+                if self.config.debug_mode:
+                    self._debug_print(f"[start_scan] 所有工作线程已处理")
+                    
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"[start_scan] 扫描过程异常: {type(e).__name__}: {e}")
+            self.running = False
+            raise
 
     def generate_report(self, report_file="full_report.csv"):
         if self.config.debug_mode:
@@ -1141,56 +1566,109 @@ class UltimateURLScanner(DebugMixin):
                 self.output_handler.output_external_unvisited(unvisited, report_file)
 
 def scanner_start(config):
-    """启动扫描器"""
-    # 创建扫描器
-    scanner = UltimateURLScanner(config)
+    """启动扫描器 - 增强错误处理"""
+    if config.debug_mode:
+        print(f"{Fore.CYAN}[scanner_start] 开始初始化扫描器...{Style.RESET_ALL}")
     
-    print(f"{Fore.GREEN}扫描器已就绪，开始扫描目标: {config.start_url}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}配置: 最大深度={config.max_depth}, 最大URL数={config.max_urls}, 线程数={config.max_workers}{Style.RESET_ALL}")
-    start_time = time.time()
-    
-    # 启动外部URL线程
-    external_thread = threading.Thread(target=scanner.external_worker, name="ExternalURLThread", daemon=True)
-    external_thread.start()
-
     try:
-        scanner.start_scan()
-    except KeyboardInterrupt:
-        print(f"\n{Fore.RED}扫描被用户中断!{Style.RESET_ALL}")
-    except Exception as e:
-        print(f"\n{Fore.RED}扫描出错: {str(e)}{Style.RESET_ALL}")
-    finally:
-        # 自动生成报告文件名：主域名_日期时间.csv
-        from datetime import datetime
-        import re as _re
-        parsed_url = urllib.parse.urlparse(config.start_url)
-        domain = parsed_url.netloc or config.start_url
-        # 只保留域名部分，去除端口
-        domain = domain.split(':')[0]
-        # 去除非字母数字和点
-        domain = _re.sub(r'[^a-zA-Z0-9.]', '', domain)
-        dt_str = datetime.now().strftime('%Y%m%d_%H%M')
-        report_filename = f"results/{domain}_{dt_str}.csv"
-        scanner.generate_report(report_filename)
-        total_time = time.time() - start_time
-        print(f"{Fore.YELLOW}总耗时: {total_time:.2f}秒 | 平均速度: {scanner.output_handler.url_count/total_time:.1f} URL/秒{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}扫描结束!{Style.RESET_ALL}")
-        # 优雅关闭外部线程
-        scanner.external_running = False
-        external_thread.join(timeout=10)
+        # 创建扫描器
+        scanner = UltimateURLScanner(config)
+        if config.debug_mode:
+            print(f"{Fore.CYAN}[scanner_start] 扫描器创建成功{Style.RESET_ALL}")
         
-        # 生成外部URL访问报告
-        if scanner.external_results:
-            scanner.output_handler.append_results(scanner.external_results, report_filename)
-            print(f"{Fore.GREEN}外部URL访问结束，结果已追加写入: {report_filename}{Style.RESET_ALL}")
-        # 新增：输出未访问的外部URL
-        # 已在 generate_report 中处理
+        print(f"{Fore.GREEN}扫描器已就绪，开始扫描目标: {config.start_url}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}配置: 最大深度={config.max_depth}, 最大URL数={config.max_urls}, 线程数={config.max_workers}{Style.RESET_ALL}")
+        start_time = time.time()
+        
+        # 启动外部URL线程
+        try:
+            external_thread = threading.Thread(target=scanner.external_worker, name="ExternalURLThread", daemon=True)
+            external_thread.start()
+            if config.debug_mode:
+                print(f"{Fore.CYAN}[scanner_start] 外部URL线程已启动{Style.RESET_ALL}")
+        except Exception as e:
+            if config.debug_mode:
+                print(f"{Fore.RED}[scanner_start] 启动外部URL线程失败: {e}{Style.RESET_ALL}")
+            # 继续执行，不因为外部线程失败而停止
+
+        try:
+            scanner.start_scan()
+        except KeyboardInterrupt:
+            print(f"\n{Fore.RED}扫描被用户中断!{Style.RESET_ALL}")
+            if config.debug_mode:
+                print(f"{Fore.YELLOW}[scanner_start] 用户中断扫描{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"\n{Fore.RED}扫描出错: {str(e)}{Style.RESET_ALL}")
+            if config.debug_mode:
+                print(f"{Fore.RED}[scanner_start] 扫描异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                import traceback
+                traceback.print_exc()
+        finally:
+            try:
+                # 自动生成报告文件名：主域名_日期时间.csv
+                from datetime import datetime
+                import re as _re
+                parsed_url = urllib.parse.urlparse(config.start_url)
+                domain = parsed_url.netloc or config.start_url
+                # 只保留域名部分，去除端口
+                domain = domain.split(':')[0]
+                # 去除非字母数字和点
+                domain = _re.sub(r'[^a-zA-Z0-9.]', '', domain)
+                dt_str = datetime.now().strftime('%Y%m%d_%H%M')
+                report_filename = f"results/{domain}_{dt_str}.csv"
+                
+                if config.debug_mode:
+                    print(f"{Fore.CYAN}[scanner_start] 生成报告: {report_filename}{Style.RESET_ALL}")
+                
+                scanner.generate_report(report_filename)
+                total_time = time.time() - start_time
+                
+                if total_time > 0:
+                    avg_speed = scanner.output_handler.url_count / total_time
+                else:
+                    avg_speed = 0
+                
+                print(f"{Fore.YELLOW}总耗时: {total_time:.2f}秒 | 平均速度: {avg_speed:.1f} URL/秒{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}扫描结束!{Style.RESET_ALL}")
+                
+                # 优雅关闭外部线程
+                try:
+                    scanner.external_running = False
+                    external_thread.join(timeout=10)
+                    if config.debug_mode:
+                        print(f"{Fore.CYAN}[scanner_start] 外部URL线程已关闭{Style.RESET_ALL}")
+                except Exception as e:
+                    if config.debug_mode:
+                        print(f"{Fore.RED}[scanner_start] 关闭外部URL线程失败: {e}{Style.RESET_ALL}")
+                
+                # 生成外部URL访问报告
+                try:
+                    if scanner.external_results:
+                        scanner.output_handler.append_results(scanner.external_results, report_filename)
+                        print(f"{Fore.GREEN}外部URL访问结束，结果已追加写入: {report_filename}{Style.RESET_ALL}")
+                except Exception as e:
+                    if config.debug_mode:
+                        print(f"{Fore.RED}[scanner_start] 处理外部URL结果失败: {e}{Style.RESET_ALL}")
+                
+            except Exception as e:
+                print(f"{Fore.RED}生成报告时出错: {str(e)}{Style.RESET_ALL}")
+                if config.debug_mode:
+                    print(f"{Fore.RED}[scanner_start] 报告生成异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                    import traceback
+                    traceback.print_exc()
+    
+    except Exception as e:
+        print(f"{Fore.RED}扫描器初始化失败: {str(e)}{Style.RESET_ALL}")
+        if config.debug_mode:
+            print(f"{Fore.RED}[scanner_start] 初始化异常详情: {type(e).__name__}: {e}{Style.RESET_ALL}")
+            import traceback
+            traceback.print_exc()
 
 def main():
 
-    print(f"{Fore.YELLOW}=== WhiteURLScan v1.1 ===")
+    print(f"{Fore.YELLOW}=== WhiteURLScan v1.2 ===")
     print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
-    parser = argparse.ArgumentParser(description="WhiteURLScan v1.1")
+    parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
     parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
     parser.add_argument('-uf', dest='url_file', type=str, help='批量URL文件，每行一个URL')
     parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
