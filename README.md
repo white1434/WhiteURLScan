@@ -104,16 +104,26 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - 请勿将本工具用于非法用途
 
 ## TODO
-- 过滤危险接口
-- 自定义提取路径
-- 自定义拼接路径
-- POST请求检测
-- POST参数检测
-- 动态api加载
-- 拼接路径方式优化
-- 浏览器模拟访问
+- [x] 添加多线程功能
+- [x] 添加代理功能
+- [x] 添加正则匹配功能
+- [x] 添加文件保存功能
+- [x] 添加参数配置功能
+- [x] 添加敏感信息检测功能
+- [x] 添加危险接口过滤功能
+- [ ] 添加指纹识别功能
+- [ ] 自定义fuzz列表
+- [ ] 自定义api路径
+- [ ] POST请求检测
+- [ ] 动态api加载
+- [ ] 浏览器模拟访问
+- [ ] 网页返回类型细分
+- [ ] 优化敏感信息匹配
+- [ ] 优化路径匹配
+- [ ] 优化拼接方式
+- [ ] 优化代码结构
 
-## 感谢参考
+## 参考感谢
 - AI编写
 - https://github.com/pingc0y/URLFinder
 - https://github.com/gh0stkey/HaE
