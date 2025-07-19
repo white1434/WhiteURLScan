@@ -122,7 +122,8 @@ class ScannerConfig(DebugMixin):
                  max_depth=1, blacklist_domains=None, headers=None, output_file=None,
                  sensitive_patterns=None, color_output=True, verbose=True,
                  extension_blacklist=None, max_urls=5000, smart_concatenation=True,
-                 debug_mode=False, url_scope_mode=0):  # 新增 url_scope_mode
+                 debug_mode=False, url_scope_mode=0, danger_filter_enabled=1,
+                 danger_api_list=None):  # 新增危险接口过滤配置
         self.start_url = start_url
         self.proxy = {'http': proxy, 'https': proxy} if proxy else None
         self.delay = delay
@@ -137,6 +138,8 @@ class ScannerConfig(DebugMixin):
         self.smart_concatenation = smart_concatenation
         self.debug_mode = debug_mode
         self.url_scope_mode = int(url_scope_mode)  # 新增
+        self.danger_filter_enabled = int(danger_filter_enabled)  # 新增：危险接口过滤开关
+        self.danger_api_list = danger_api_list
         if start_url and DOMAIN_EXTRACTION:
             ext = tldextract.extract(start_url)
             self.base_domain = f"{ext.domain}.{ext.suffix}"
@@ -355,6 +358,10 @@ class URLConcatenator(DebugMixin):
 
 # ====================== URL匹配模块 ======================
 class URLMatcher(DebugMixin):
+    # 全局危险接口过滤集合和锁
+    danger_api_filtered = set()
+    danger_api_lock = threading.Lock()
+    
     def __init__(self, config, scanner=None):
         self.config = config
         self.debug_mode = config.debug_mode  # 设置debug_mode属性
@@ -566,8 +573,6 @@ class URLMatcher(DebugMixin):
                     url = match
                 
                 self._debug_print(f"处理匹配结果: {url}")
-                if 'adminList' in url:
-                    print(f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', url, base_url, f"Regex: {pattern}")
                 
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
@@ -677,18 +682,25 @@ class URLMatcher(DebugMixin):
         else:
             full_url = urllib.parse.urljoin(base_url, url)
     
-        # print(full_url)
-
-        normalized = full_url
-
-        if 'adminList' in normalized:
-            print('fffffffffffffffff', normalized, base_url, url)
-            
-        if 'logout' in normalized:
-            print('logout跳过', normalized, base_url, url)
-            return
-        
+        normalized = full_url        
         self._debug_print(f"URL处理结果: {url} -> {normalized}")
+
+               # 危险接口过滤检测
+        if self.config.danger_filter_enabled:
+            for danger_api in self.config.danger_api_list:
+                if danger_api in normalized and not normalized.endswith(".js"):
+                    # 使用线程锁确保输出安全，并过滤重复
+                    with URLMatcher.danger_api_lock:
+                        if normalized not in URLMatcher.danger_api_filtered:
+                            URLMatcher.danger_api_filtered.add(normalized)
+                            # 紫色输出 - 使用全局输出锁确保不与其他输出混合
+                            with output_lock:
+                                print(Fore.MAGENTA + f"[危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})" + Style.RESET_ALL)
+                            self._debug_print(f"[危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})")
+                        else:
+                            # 重复的危险接口，只记录debug信息
+                            self._debug_print(f"[危险] [危险] [危险] [重复危险接口已跳过] {normalized} 包含 ({danger_api})")
+                    return
 
         if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
             url_set.add(normalized)
@@ -949,8 +961,10 @@ class OutputHandler(DebugMixin):
         else:
             # 拼接输出行，新增文件类型标签但不影响原有逻辑
             url_path = result['url'].split('?')[0] if 'url' in result else ''
-            if '.' in url_path.split('/')[-1]:
-                ext = url_path.split('.')[-1].upper()
+            filename = url_path.split('/')[-1]
+            if '.' in filename:
+                # 正确提取文件扩展名：取最后一个点之后的部分
+                ext = filename.split('.')[-1].upper()
                 file_type_str = f"[{ext}]"
                 file_type_color = Fore.LIGHTCYAN_EX
                 link_type = ext
@@ -1023,8 +1037,10 @@ class OutputHandler(DebugMixin):
                     try:
                         # 自动补充link_type
                         url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
-                        if '.' in url_path.split('/')[-1]:
-                            ext = url_path.split('/')[-1].upper()
+                        filename = url_path.split('/')[-1]
+                        if '.' in filename:
+                            # 正确提取文件扩展名：取最后一个点之后的部分
+                            ext = filename.split('.')[-1].upper()
                             link_type = ext
                         else:
                             link_type = "接口"
@@ -1084,8 +1100,10 @@ class OutputHandler(DebugMixin):
                 for result in results:
                     try:
                         url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
-                        if '.' in url_path.split('/')[-1]:
-                            ext = url_path.split('/')[-1].upper()
+                        filename = url_path.split('/')[-1]
+                        if '.' in filename:
+                            # 正确提取文件扩展名：取最后一个点之后的部分
+                            ext = filename.split('.')[-1].upper()
                             link_type = ext
                         else:
                             link_type = "接口"
@@ -1841,7 +1859,8 @@ class UltimateURLScanner(DebugMixin):
             with UltimateURLScanner.visited_urls_lock:
                 unvisited = [u for u in self.external_urls if u not in UltimateURLScanner.visited_urls_global]
             if unvisited:
-                print(f"\n{Fore.MAGENTA}未访问的外部URL如下:{Style.RESET_ALL}")
+                print(f"{Fore.MAGENTA}=============================================={Style.RESET_ALL}")
+                print(f"{Fore.MAGENTA}未访问的外部URL如下:\n{Style.RESET_ALL}")
                 self.output_handler.output_external_unvisited(unvisited, report_file)
                 print(f"\n{Fore.MAGENTA}外部URL已经追加到报告文件: {report_file}{Style.RESET_ALL}")
 
@@ -1874,7 +1893,59 @@ class UltimateURLScanner(DebugMixin):
                 avg_speed = self.output_handler.url_count / total_time
             else:
                 avg_speed = 0
+
+            # 输出所有发现的危险链接
+            if URLMatcher.danger_api_filtered:
+                with output_lock:
+                    print(f"\n{Fore.MAGENTA}=== 扫描过程中发现的危险链接汇总 ==={Style.RESET_ALL}")
+                    print(f"{Fore.MAGENTA}共发现 {len(URLMatcher.danger_api_filtered)} 个危险链接:{Style.RESET_ALL}")
+                    for i, danger_url in enumerate(sorted(URLMatcher.danger_api_filtered), 1):
+                        print(f"{Fore.MAGENTA}[{i:2d}] {danger_url}{Style.RESET_ALL}")
+                
+                # 将危险链接写入CSV文件
+                try:
+                    with open(report_filename, 'a', newline='', encoding='utf-8') as f:
+                        writer = csv.writer(f)
+                        
+                        # 写入每个危险链接，使用与正常扫描结果相同的格式
+                        for i, danger_url in enumerate(sorted(URLMatcher.danger_api_filtered), 1):
+                            # 检测危险类型
+                            danger_types = []
+                            for danger_api in self.config.danger_api_list:
+                                if danger_api in danger_url and not danger_url.endswith(".js"):
+                                    danger_types.append(danger_api)
+                            
+                            danger_type_str = ", ".join(danger_types) if danger_types else "未知"
+                            
+                            # 使用与正常扫描结果相同的列格式：URL, 状态, 标题, 长度, 链接类型, 重定向, 深度, 敏感信息类型, 敏感信息数量, 敏感信息详细清单, 是否重复
+                            writer.writerow([
+                                danger_url,           # URL
+                                '危险',               # 状态
+                                '危险接口',           # 标题
+                                0,                    # 长度
+                                '危险',               # 链接类型
+                                '',                   # 重定向
+                                0,                    # 深度
+                                danger_type_str,      # 敏感信息类型
+                                '1',                  # 敏感信息数量
+                                f'危险接口: {danger_type_str}',  # 敏感信息详细清单
+                                '否'                  # 是否重复
+                            ])
+                    print(f"{Fore.MAGENTA}\n危险链接已经追加到报告文件: {report_filename} \n {Style.RESET_ALL}")
+                    if self.config.debug_mode:
+                        self._debug_print(f"危险链接已经追加到报告文件: {report_filename}")
+                        
+                except Exception as e:
+                    if self.config.debug_mode:
+                        self._debug_print(f"写入危险链接汇总到CSV文件时出错: {type(e).__name__}: {e}")
+                    with output_lock:
+                        print(f"{Fore.RED}写入危险链接汇总到CSV文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
+            else:
+                with output_lock:
+                    print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}未发现危险链接{Style.RESET_ALL}")
             
+            print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
             print(f"{Fore.YELLOW}总耗时: {total_time:.2f}秒 | 平均速度: {avg_speed:.1f} URL/秒{Style.RESET_ALL}")
             print(f"{Fore.GREEN}扫描结束!{Style.RESET_ALL}")
             
@@ -1972,24 +2043,27 @@ class UltimateURLScanner(DebugMixin):
 
 def main():
     try:
+        print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
         print(f"{Fore.YELLOW}=== WhiteURLScan v1.4 ===")
         # 增加作者和GitHub地址
-        print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan ===")
-        print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
-        print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中 ===")
-        print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+        print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
+        print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
+        print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")
+        print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         try:
             parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
-            parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
-            parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL')
-            parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
-            parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
-            parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
-            parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
-            parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置')
-            parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
-            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开')
+            parser.add_argument('-u', dest='start_url', type=str, help='起始URL，-u -f 必须指定一个')
+            parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL，-u -f 必须指定一个')
+            parser.add_argument('-delay', dest='delay', type=float, help='请求延迟时间（秒），默认0.1秒')
+            parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数，默认30')
+            parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒），默认10')
+            parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度，默认5')
+            parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件，默认results/实时输出文件.csv')
+            parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置，默认不使用代理')
+            parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭，默认0关闭')
+            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开，默认0主域')
+            parser.add_argument('-danger', dest='danger_filter_enabled', type=int, default=1, help='危险接口过滤 1开启 0关闭，默认1开启')
             args = parser.parse_args()
         except Exception as e:
             print(f"{Fore.RED}解析命令行参数时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
@@ -1997,7 +2071,7 @@ def main():
 
         # 必须至少输入 --start_url 或 --url_file
         if not args.start_url and not args.url_file:
-            print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -f 至少指定一个扫描目标！{Style.RESET_ALL}")
+            print(f"{Fore.RED}错误：-h 查看帮助 , 必须通过 -u 或 -f 至少指定一个扫描目标！{Style.RESET_ALL}")
             sys.exit(1) 
 
         # 固定从config.json读取配置
@@ -2010,7 +2084,7 @@ def main():
                 "max_workers": 30,
                 "timeout": 10,
                 "max_depth": 5,
-                "blacklist_domains": ["www.w3.org"],
+                "blacklist_domains": ["www.w3.org", "www.baidu.com"],
                 "headers": {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -2022,15 +2096,23 @@ def main():
                 "color_output": True,
                 "verbose": True,
                 "extension_blacklist": [".css", ".mp4"],
+                # "extension_blacklist": [
+                #     ".css", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".woff", ".woff2", 
+                #     ".ttf", ".eot", ".ico", ".mp4", ".mp3", ".avi", ".mov", ".pdf", 
+                #     ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar",
+                #     ".gz", ".tar", ".7z", ".exe", ".dll", ".bin", ".swf", ".flv"
+                # ],
                 "max_urls": 10000,
                 "smart_concatenation": True,
                 "debug_mode": 0,
-                "url_scope_mode": 0
+                "url_scope_mode": 0,
+                "danger_filter_enabled": 1,
+                "danger_api_list": ["del","delete","insert","logout","remove","drop","shutdown","stop","poweroff","restart","rewrite","terminate","deactivate","halt","disable"]
             }
             if not os.path.exists(config_path):
                 with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(default_config, f, ensure_ascii=False, indent=2)
-                print(f"{Fore.YELLOW}未检测到config.json，已自动创建默认配置文件！请根据需要修改。{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}=== 未检测到config.json，已自动创建默认配置文件！请根据需要修改。{Style.RESET_ALL}")
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
         except Exception as e:
@@ -2042,27 +2124,50 @@ def main():
             return getattr(args, key, None) if getattr(args, key, None) is not None else config_data.get(key, default)
 
         try:
-            print(f"{Fore.CYAN}正在初始化扫描器...{Style.RESET_ALL}")
-            
+            print(f"{Fore.CYAN}=== 正在初始化扫描器...{Style.RESET_ALL}")
             # 创建配置
             config = ScannerConfig(
                 start_url=get_config_value('start_url'),
                 proxy=get_config_value('proxy'),
-                delay=config_data.get('delay', 0.1),
+                delay=get_config_value('delay', 0.1),
                 max_workers=get_config_value('max_workers', 30),
                 timeout=get_config_value('timeout', 10),
                 max_depth=get_config_value('max_depth', 5),
-                blacklist_domains=config_data.get('blacklist_domains'),
-                headers=config_data.get('headers'),
+                blacklist_domains=get_config_value('blacklist_domains'),
+                headers=get_config_value('headers'),
                 output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
-                color_output=config_data.get('color_output', True),
-                verbose=config_data.get('verbose', True),
+                color_output=get_config_value('color_output', True),
+                verbose=get_config_value('verbose', True),
                 extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
-                max_urls=config_data.get('max_urls', 10000),
-                smart_concatenation=config_data.get('smart_concatenation', True),
+                max_urls=get_config_value('max_urls', 10000),
+                smart_concatenation=get_config_value('smart_concatenation', True),
                 debug_mode=get_config_value('debug_mode', 0),
-                url_scope_mode=get_config_value('url_scope_mode', 0)  # 新增
+                url_scope_mode=get_config_value('url_scope_mode', 0),
+                danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
+                danger_api_list=get_config_value('danger_api_list')
             )
+
+            # 打印所有配置
+            print(f"{Fore.CYAN}=============================================={Style.RESET_ALL}")    
+            print(f"{Fore.CYAN}=== 开始链接: {config.start_url}")
+            print(f"{Fore.CYAN}=== 代理设置: {config.proxy}")
+            print(f"{Fore.CYAN}=== 延迟设置: {config.delay}")
+            print(f"{Fore.CYAN}=== 最大线程: {config.max_workers}")
+            print(f"{Fore.CYAN}=== 请求超时: {config.timeout}")
+            print(f"{Fore.CYAN}=== 最大深度: {config.max_depth}")
+            print(f"{Fore.CYAN}=== 跳过域名: {config.blacklist_domains}")
+            print(f"{Fore.CYAN}=== 请求的头: {config.headers}")
+            print(f"{Fore.CYAN}=== 实时文件: {config.output_file}")
+            print(f"{Fore.CYAN}=== 彩色输出: {config.color_output}")
+            print(f"{Fore.CYAN}=== 详细输出: {config.verbose}")
+            print(f"{Fore.CYAN}=== 跳过扩展: {config.extension_blacklist}")
+            print(f"{Fore.CYAN}=== 最大请求: {config.max_urls}")
+            print(f"{Fore.CYAN}=== 智能拼接: {config.smart_concatenation}")
+            print(f"{Fore.CYAN}=== 调试模式: {config.debug_mode}")
+            print(f"{Fore.CYAN}=== 扫描范围: {config.url_scope_mode}")
+            print(f"{Fore.CYAN}=== 危险过滤: {config.danger_filter_enabled}")
+            print(f"{Fore.CYAN}=== 危险接口: {config.danger_api_list}")
+            print(f"{Fore.CYAN}=============================================={Style.RESET_ALL}")
             
             # 如果输入的是-u, 则直接开始扫描
             if args.start_url:
@@ -2088,20 +2193,22 @@ def main():
                             url_config = ScannerConfig(
                                 start_url=url,
                                 proxy=get_config_value('proxy'),
-                                delay=config_data.get('delay', 0.1),
+                                delay=get_config_value('delay', 0.1),
                                 max_workers=get_config_value('max_workers', 30),
                                 timeout=get_config_value('timeout', 10),
                                 max_depth=get_config_value('max_depth', 5),
-                                blacklist_domains=config_data.get('blacklist_domains'),
-                                headers=config_data.get('headers'),
+                                blacklist_domains=get_config_value('blacklist_domains'),
+                                headers=get_config_value('headers'),
                                 output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
-                                color_output=config_data.get('color_output', True),
-                                verbose=config_data.get('verbose', True),
+                                color_output=get_config_value('color_output', True),
+                                verbose=get_config_value('verbose', True),
                                 extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
-                                max_urls=config_data.get('max_urls', 10000),
-                                smart_concatenation=config_data.get('smart_concatenation', True),
+                                max_urls=get_config_value('max_urls', 10000),
+                                smart_concatenation=get_config_value('smart_concatenation', True),
                                 debug_mode=get_config_value('debug_mode', 0),
-                                url_scope_mode=get_config_value('url_scope_mode', 0)  # 新增
+                                url_scope_mode=get_config_value('url_scope_mode', 0),
+                                danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
+                                danger_api_list=get_config_value('danger_api_list')
                             )
                             scanner = UltimateURLScanner(url_config)
                             scanner.start_scanning()

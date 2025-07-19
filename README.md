@@ -71,8 +71,9 @@ python WhiteURLScan.py -f url.txt
 
 ### 3. 常用命令行参数
 
-- `-u`      起始URL
-- `-f`     批量URL文件
+- `-u`       起始URL
+- `-f`       批量URL文件
+- `-delay`    延迟时间（秒）
 - `-workers` 最大线程数（如 30）
 - `-timeout` 请求超时（秒）
 - `-depth`   最大递归深度
@@ -80,6 +81,7 @@ python WhiteURLScan.py -f url.txt
 - `-proxy`   代理（如 http://127.0.0.1:8080）
 - `-debug`   调试模式（1开启，0关闭）
 - `-scope`   URL扫描范围模式 0主域 1外部一次 2全放开
+- `-danger`  危险接口过滤（1开启，0关闭）
   
 示例：
 
@@ -96,8 +98,9 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 
 ## 注意事项
 
-- 建议合理设置线程数和递归深度，避免对目标站点造成压力
-- 敏感信息检测基于正则表达式，结果仅供参考
+- 建议合理设置线程数、递归深度、延迟时间，避免对目标站点造成压力
+- 递归深度如果过大，程序扫描玩所有页面链接后会直接结束，但可能陷入循环直到达到上限，请根据需求进行设置
+- 敏感信息检测基于正则表达式，结果仅供参考，欢迎补充
 - 请勿将本工具用于非法用途
 
 ## TODO
@@ -111,7 +114,7 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - 浏览器模拟访问
 
 ## 感谢参考
-- AI
+- AI编写
 - https://github.com/pingc0y/URLFinder
 - https://github.com/gh0stkey/HaE
 - https://github.com/momosecurity/FindSomething
