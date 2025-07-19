@@ -20,6 +20,50 @@ import argparse
 import json
 
 output_lock = threading.Lock()
+
+# 创建输出日志记录器
+import sys
+from datetime import datetime
+
+class OutputLogger:
+    def __init__(self, log_file="results/output.out"):
+        self.log_file = log_file
+        self.original_stdout = sys.stdout
+        self.original_stderr = sys.stderr
+        
+        # 确保日志目录存在
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        # 创建文件输出流
+        self.log_stream = open(log_file, 'a', encoding='utf-8')
+        
+    def write(self, text):
+        # 写入到原始stdout（保持彩色）
+        self.original_stdout.write(text)
+        # 同时写入到日志文件（去除颜色代码）
+        try:
+            # 去除ANSI颜色代码
+            import re
+            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+            clean_text = ansi_escape.sub('', text)
+            self.log_stream.write(clean_text)
+            self.log_stream.flush()
+        except Exception:
+            pass
+    
+    def flush(self):
+        self.original_stdout.flush()
+        try:
+            self.log_stream.flush()
+        except Exception:
+            pass
+    
+    def close(self):
+        try:
+            self.log_stream.close()
+        except Exception:
+            pass
+
 # 禁用SSL警告
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -31,6 +75,13 @@ try:
 except ImportError:
     COLOR_SUPPORT = False
     Fore = Style = type('', (), {'__getattr__': lambda *args: ''})()
+
+# 初始化输出日志记录器
+output_logger = OutputLogger()
+
+# 重定向stdout和stderr到日志记录器
+sys.stdout = output_logger
+sys.stderr = output_logger
 
 try:
     import tldextract
@@ -707,23 +758,52 @@ class OutputHandler(DebugMixin):
             os.makedirs(os.path.dirname(os.path.abspath(config.output_file)), exist_ok=True)
             with open(config.output_file, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(['URL', 'Status', 'Title', 'Length', 'Redirects', 'Depth', 'Sensitive Data', 'Is Duplicate'])
+                writer.writerow(['URL', 'Status', 'Title', 'Length', 'Redirects', 'Depth', 'Sensitive Types', 'Sensitive Counts', 'Sensitive Details', 'Is Duplicate'])
             
             if self.config.debug_mode:
                 self._debug_print(f"输出文件已初始化: {config.output_file}")
     
     def _format_sensitive_data_for_csv(self, sensitive_raw):
-        """格式化敏感信息数据用于CSV保存"""
+        """格式化敏感信息数据用于CSV保存 - 返回三个字段：类型、数量、详细清单"""
         if not sensitive_raw:
-            return ""
+            return "", "", ""
         
-        sensitive_items = []
+        sensitive_types = []
+        sensitive_counts = []
+        sensitive_details = []
+        
         for item in sensitive_raw:
             if isinstance(item, dict):
-                sensitive_items.append(f"{item.get('type', '未知')}:{item.get('count', 0)}")
+                # 结构化格式
+                sensitive_type = item.get('type', '未知')
+                count = item.get('count', 0)
+                samples = item.get('samples', [])
+                
+                sensitive_types.append(sensitive_type)
+                sensitive_counts.append(str(count))
+                
+                # 详细清单：样本内容（最多显示前3个，用分号分隔）
+                if samples:
+                    # detail_samples = samples[:3]  # 最多显示3个样本
+                    detail_samples = samples  # 显示全部样本
+                    # 确保所有样本都是字符串类型
+                    detail_samples_str = [str(sample) for sample in detail_samples]
+                    detail_str = f"{sensitive_type}:{'; '.join(detail_samples_str)}"
+                    # 如果样本数量大于3，显示..., 暂不启用
+                    # if len(samples) > 3:
+                    #     detail_str += f"...(共{count}个)"
+                else:
+                    detail_str = f"{sensitive_type}:无样本"
+                
+                sensitive_details.append(detail_str)
             else:
-                sensitive_items.append(str(item))
-        return "|".join(sensitive_items)
+                # 其他格式
+                item_str = str(item)
+                sensitive_types.append("未知类型")
+                sensitive_counts.append("1")
+                sensitive_details.append(item_str)
+        
+        return "|".join(sensitive_types), "|".join(sensitive_counts), "|".join(sensitive_details)
     
     def get_status_color(self, status):
         """获取状态码对应的颜色"""
@@ -790,10 +870,10 @@ class OutputHandler(DebugMixin):
         
         # 敏感信息显示
         sensitive_str = ""
-        if result['sensitive']:
+        if result.get('sensitive_raw'):
             # 处理结构化敏感信息格式
             sensitive_types = []
-            for item in result['sensitive']:
+            for item in result['sensitive_raw']:
                 if isinstance(item, dict):
                     # 结构化格式：字典结构
                     sensitive_type = item.get('type', '未知')
@@ -862,7 +942,7 @@ class OutputHandler(DebugMixin):
                 writer = csv.writer(f)
                 
                 # 处理敏感信息数据用于CSV保存
-                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
                 
                 writer.writerow([
                     result['url'],
@@ -871,7 +951,9 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    sensitive_data,  # 保存结构化敏感信息数据
+                    sensitive_types,  # 敏感信息类型
+                    sensitive_counts,  # 敏感信息数量
+                    sensitive_details,  # 敏感信息详细清单
                     '是' if result.get('is_duplicate', False) else '否',  # 添加重复标记列
                     result.get('link_type', '')  # 新增：链接类型
                 ])
@@ -888,7 +970,7 @@ class OutputHandler(DebugMixin):
         os.makedirs(os.path.dirname(os.path.abspath(report_file)), exist_ok=True)
         with open(report_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['URL', '状态', '标题', '长度', '重定向', '深度', '敏感信息', '是否重复', '链接类型'])  # 新增链接类型
+            writer.writerow(['URL', '状态', '标题', '长度', '重定向', '深度', '敏感信息类型', '敏感信息数量', '敏感信息详细清单', '是否重复', '链接类型'])
             for result in results:
                 # 自动补充link_type
                 url_path = result['url'].split('?')[0] if 'url' in result else ''
@@ -899,7 +981,7 @@ class OutputHandler(DebugMixin):
                     link_type = "接口"
                 
                 # 处理敏感信息数据用于CSV保存
-                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
                 
                 writer.writerow([
                     result['url'],
@@ -908,7 +990,9 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    sensitive_data,  # 保存结构化敏感信息数据
+                    sensitive_types,  # 敏感信息类型
+                    sensitive_counts,  # 敏感信息数量
+                    sensitive_details,  # 敏感信息详细清单
                     '是' if result.get('is_duplicate', False) else '否',
                     result.get('link_type', link_type)  # 新增：链接类型
                 ])
@@ -934,7 +1018,7 @@ class OutputHandler(DebugMixin):
                     link_type = "接口"
                 
                 # 处理敏感信息数据用于CSV保存
-                sensitive_data = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
                 
                 writer.writerow([
                     result['url'],
@@ -943,7 +1027,9 @@ class OutputHandler(DebugMixin):
                     result['length'],
                     result['redirects'],
                     result['depth'],
-                    sensitive_data,  # 保存结构化敏感信息数据
+                    sensitive_types,  # 敏感信息类型
+                    sensitive_counts,  # 敏感信息数量
+                    sensitive_details,  # 敏感信息详细清单
                     '是' if result.get('is_duplicate', False) else '否',
                     result.get('link_type', link_type)  # 新增：链接类型
                 ])
@@ -953,7 +1039,7 @@ class OutputHandler(DebugMixin):
         from colorama import Fore, Style
         for url in urls:
             output_line = (
-                f"{Fore.MAGENTA}[外部][外部][外部][外部][外部]{url}[外部][外部]{Style.RESET_ALL}"
+                f"{Fore.MAGENTA}[外部] [外部] [外部] [外部] [外部] {url} [外部] [外部] {Style.RESET_ALL}"
             )
             with output_lock:
                 print(output_line)
@@ -963,7 +1049,7 @@ class OutputHandler(DebugMixin):
                     import csv
                     writer = csv.writer(f)
                     writer.writerow([
-                        url, '外部', '外部', '外部', '外部', '外部', '外部', '外部', '外部'
+                        url, '外部', '外部', '外部', '外部', '外部', '', '', '', '否', '外部'
                     ])
 
 # ====================== 扫描核心模块 ======================
@@ -1564,6 +1650,7 @@ class UltimateURLScanner(DebugMixin):
             if unvisited:
                 print(f"\n{Fore.MAGENTA}未访问的外部URL如下:{Style.RESET_ALL}")
                 self.output_handler.output_external_unvisited(unvisited, report_file)
+                print(f"\n{Fore.MAGENTA}外部URL已经追加到报告文件: {report_file}{Style.RESET_ALL}")
 
 def scanner_start(config):
     """启动扫描器 - 增强错误处理"""
@@ -1666,8 +1753,10 @@ def scanner_start(config):
 
 def main():
 
-    print(f"{Fore.YELLOW}=== WhiteURLScan v1.2 ===")
+    print(f"{Fore.YELLOW}=== WhiteURLScan v1.3 ===")
     print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示 ===")
+    print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中 ===")
+    print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
     parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
     parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
     parser.add_argument('-uf', dest='url_file', type=str, help='批量URL文件，每行一个URL')
@@ -1705,7 +1794,7 @@ def main():
         "output_file": "results/实时输出文件.csv",
         "color_output": True,
         "verbose": True,
-        "extension_blacklist": [".css", ".mp4"],
+        "extension_blacklist": [".css", ".mp4", ".jpg", ".png", ".gif", ".jpeg", ".bmp", ".tiff", ".tif", ".svg"],
         "max_urls": 10000,
         "smart_concatenation": True,
         "debug_mode": 0,
@@ -1783,5 +1872,14 @@ def main():
             scanner_start(url_config)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        # 恢复原始的stdout和stderr
+        sys.stdout = output_logger.original_stdout
+        sys.stderr = output_logger.original_stderr
+        # 关闭日志文件
+        output_logger.close()
+        print(f"{Fore.GREEN}输出日志已保存到: results/output.out{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}扫描结束时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
     

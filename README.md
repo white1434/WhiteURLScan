@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-本项目是一个多线程高效的网站URL扫描与信息采集工具，支持递归爬取、敏感信息检测、外部URL收集、批量扫描等功能。适用于安全测试、信息收集、资产梳理等场景。
+本项目是一个多线程高效的网站URL扫描与信息采集工具，支持递归爬取、自动拼接、敏感信息检测、外部URL收集、批量扫描等功能。适用于安全测试、信息收集、资产梳理等场景。
 
 ## 主要功能
 
@@ -43,7 +43,7 @@ pip install requests beautifulsoup4 tldextract colorama
 - `start_url`：起始扫描URL
 - `max_workers`：最大线程数
 - `timeout`：请求超时时间（秒）
-- `max_depth`：最大递归深度
+- `max_depth`：最大递归深度（深度过大爬取所有链接后将直接结束程序）
 - `output_file`：实时输出结果文件
 - `blacklist_domains`：黑名单域名
 - `extension_blacklist`：过滤的文件扩展名
