@@ -1794,7 +1794,7 @@ def main():
         "output_file": "results/实时输出文件.csv",
         "color_output": True,
         "verbose": True,
-        "extension_blacklist": [".css", ".mp4", ".jpg", ".png", ".gif", ".jpeg", ".bmp", ".tiff", ".tif", ".svg"],
+        "extension_blacklist": [".css", ".mp4"],
         "max_urls": 10000,
         "smart_concatenation": True,
         "debug_mode": 0,
