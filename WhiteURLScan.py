@@ -1278,7 +1278,7 @@ class UltimateURLScanner(DebugMixin):
         # 检查URL数量限制
         if self.output_handler.url_count >= self.config.max_urls:
             if self.config.debug_mode:
-                self._debug_print(f"达到最大URL数量限制, 跳过扫描URL: ")
+                self._debug_print(f"达到最大URL数量限制: {self.output_handler.url_count}/{self.config.max_urls}")
             return False
         
         # 检查请求数量限制
@@ -1769,16 +1769,6 @@ class UltimateURLScanner(DebugMixin):
         
         while (self.external_running if is_external else self.running) or not queue_obj.empty():
             try:
-                # 检查请求限制
-                if not self._check_request_limits():
-                    item = self._safe_queue_get(queue_obj, timeout=2 if is_external else 10)
-                    if item:
-                        self._safe_queue_task_done(queue_obj)
-                    continue
-                
-                # 定期清理连接池
-                last_cleanup_time = self._periodic_cleanup(processed_count, last_cleanup_time)
-                
                 # 从队列获取URL
                 item = self._safe_queue_get(queue_obj, timeout=2 if is_external else 10)
                 if not item:
@@ -1789,6 +1779,17 @@ class UltimateURLScanner(DebugMixin):
                     continue
                 
                 url, depth = item if isinstance(item, tuple) else (item, 0)
+                
+                # 检查请求限制
+                if not self._check_request_limits():
+                    if self.config.debug_mode:
+                        self._debug_print(f"[worker_loop] 达到限制，跳过扫描URL: {url} (深度: {depth}) - 线程: {thread_name}")
+                    self._safe_queue_task_done(queue_obj)
+                    continue
+                
+                # 定期清理连接池
+                last_cleanup_time = self._periodic_cleanup(processed_count, last_cleanup_time)
+                
                 if self.config.debug_mode:
                     self._debug_print(f"[worker_loop] 处理URL: {url} (深度: {depth}) - 线程: {thread_name}")
                 
