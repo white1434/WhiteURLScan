@@ -60,7 +60,7 @@ pip install requests beautifulsoup4 tldextract colorama
 ```bash
 python WhiteURLScan.py -u https://example.com
 ```
-
+![运行](.\images\1.jpg "Magic Gardens")
 ### 2. 批量URL扫描
 
 将多个URL写入 `url.txt`，每行一个，然后：
@@ -92,7 +92,7 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - 实时扫描结果会输出到控制台，并保存到 `results/` 目录下的CSV文件
 - 外部URL访问结果也会自动追加到报告文件
 - 日志文件为 `debug.log`（调试模式下）
-
+![运行](.\images\2.jpg "Magic Gardens")
 
 ## 注意事项
 
