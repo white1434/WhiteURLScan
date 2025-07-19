@@ -101,14 +101,14 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - 请勿将本工具用于非法用途
 
 ## TODO
-过滤危险接口
-自定义提取路径
-自定义拼接路径
-POST请求检测
-POST参数检测
-动态api加载
-拼接路径方式优化
-浏览器模拟访问
+- 过滤危险接口
+- 自定义提取路径
+- 自定义拼接路径
+- POST请求检测
+- POST参数检测
+- 动态api加载
+- 拼接路径方式优化
+- 浏览器模拟访问
 
 ## 感谢参考
 - AI

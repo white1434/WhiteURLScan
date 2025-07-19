@@ -427,6 +427,7 @@ class URLMatcher(DebugMixin):
         path_patterns = [
             r'["\'](/[^"\'\s]+)["\']',  # 双引号或单引号包裹的绝对路径
             r'["\'](\.{1,2}/[^"\'\s]+)["\']',  # 双引号或单引号包裹的相对路径
+            r'["\'](\\\\*/[^"\'\s]+)["\']',  # 匹配这种"href":"\/admin\/Auth\/adminList.html"
             r'`(/([^`\s]+))`',  # 反引号包裹的绝对路径
             r'`(\.{1,2}/[^`\s]+)`',  # 反引号包裹的相对路径
             r'\b(?:href|src|action)\s*=\s*["\']?([^"\'\s>]+)',  # HTML属性值
@@ -565,6 +566,8 @@ class URLMatcher(DebugMixin):
                     url = match
                 
                 self._debug_print(f"处理匹配结果: {url}")
+                if 'adminList' in url:
+                    print(f'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', url, base_url, f"Regex: {pattern}")
                 
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
@@ -624,27 +627,15 @@ class URLMatcher(DebugMixin):
     def _process_url(self, url, base_url, url_set, source=""):
         """!!!处理单个接口，拼接成URL，添加到集合中"""
 
-                # 新增：去除首尾引号和空格
-        url = url.strip().strip('\'"')
-
-        # 如果有多个http, 匹配字符串分割成多个URL，分别添加到集合中
-        urls = re.findall(r'http[s]?://[^ ]+', url)
-        for url in urls:
-            if url:
-                # 新增：外部URL收集逻辑
-                # print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', url)
-
-                if not self.is_valid_domain(url):
-                    if self.scanner is not None:
-                        with self.scanner.external_urls_lock:
-                            if url not in self.scanner.external_urls:
-                                self.scanner.external_urls.add(url)
-                                self.scanner.external_url_queue.put(url)
-                    self._debug_print(f"外部URL已收集: {url}")
-                    return  # 外部URL不加入主扫描集合
-
-
-
+        if not url or url.strip() == "":
+            self._debug_print(f"跳过空URL")
+            return
+    
+        # 跳过常见无效URL
+        if url.startswith(('javascript:', 'data:', 'mailto:', 'tel:')):
+            self._debug_print(f"跳过无效URL: {url}")
+            return
+        
         # 新增：只保留URL允许的字符，遇到第一个不合法字符就截断
         m = re.match(r'^[a-zA-Z0-9:/?&=._~#%\\-]+', url)
         if m:
@@ -652,21 +643,23 @@ class URLMatcher(DebugMixin):
         else:
             return  # 如果没有合法URL部分，直接跳过
 
-        if not url or url.strip() == "":
-            self._debug_print(f"跳过空URL")
-            return
-    
+        # 新增：去除首尾引号和空格
+        url = url.strip().strip('\'"')
 
-        # 跳过常见无效URL
-        if url.startswith(('javascript:', 'data:', 'mailto:', 'tel:')):
-            self._debug_print(f"跳过无效URL: {url}")
-            return
-        
-        # print(url)
-        # 如果已经是绝对URL，直接添加到集合中
-        # if url.startswith(('http://', 'https://')):
-        #     url_set.add(url)
-        #     return
+        if 'http' in url:
+            # 如果有多个http, 匹配字符串分割成多个URL，分别添加到集合中
+            urls = re.findall(r'http[s]?://[^ ]+', url)
+            for url in urls:
+                if url:
+                    # 新增：外部URL收集逻辑
+                    if not self.is_valid_domain(url):
+                        if self.scanner is not None:
+                            with self.scanner.external_urls_lock:
+                                if url not in self.scanner.external_urls:
+                                    self.scanner.external_urls.add(url)
+                                    self.scanner.external_url_queue.put(url)
+                        self._debug_print(f"外部URL已收集: {url}")
+                        return  # 外部URL不加入主扫描集合
 
 
         # 特殊处理：如果URL以//开头，添加协议
@@ -675,6 +668,9 @@ class URLMatcher(DebugMixin):
             url = f"{parsed_base.scheme}:{url}"
             self._debug_print(f"协议相对URL处理: {url}")
         
+        # 去掉url中的所有的'\'
+        url = url.replace('\\', '')
+
         # 应用智能拼接
         if self.config.smart_concatenation:
             full_url = self.concatenator.smart_concatenation(base_url, url)
@@ -685,6 +681,13 @@ class URLMatcher(DebugMixin):
 
         normalized = full_url
 
+        if 'adminList' in normalized:
+            print('fffffffffffffffff', normalized, base_url, url)
+            
+        if 'logout' in normalized:
+            print('logout跳过', normalized, base_url, url)
+            return
+        
         self._debug_print(f"URL处理结果: {url} -> {normalized}")
 
         if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
@@ -1568,6 +1571,7 @@ class UltimateURLScanner(DebugMixin):
             self._debug_print(f"内容URL提取异常: {type(e).__name__}: {e}, url={base_url}, depth={depth}")
             new_urls = []
         
+        # print(new_urls)
         # 处理新URL
         added_count = 0
         skipped_count = 0
