@@ -1978,7 +1978,7 @@ def main():
         try:
             parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
             parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
-            parser.add_argument('-uf', dest='url_file', type=str, help='批量URL文件，每行一个URL')
+            parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL')
             parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
             parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
             parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
@@ -1993,7 +1993,7 @@ def main():
 
         # 必须至少输入 --start_url 或 --url_file
         if not args.start_url and not args.url_file:
-            print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -uf 至少指定一个扫描目标！{Style.RESET_ALL}")
+            print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -f 至少指定一个扫描目标！{Style.RESET_ALL}")
             sys.exit(1) 
 
         # 固定从config.json读取配置
@@ -2065,7 +2065,7 @@ def main():
                 print(f"{Fore.YELLOW}开始扫描: {args.start_url}{Style.RESET_ALL}")
                 scanner = UltimateURLScanner(config)
                 scanner.start_scanning()
-            # 如果输入的是-uf 则读取url_file文件, 遍历更新config.start_url, 然后循环开始扫描
+            # 如果输入的是-f 则读取url_file文件, 遍历更新config.start_url, 然后循环开始扫描
             elif args.url_file:
                 try:
                     if not os.path.exists(args.url_file):

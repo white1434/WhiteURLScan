@@ -66,13 +66,13 @@ python WhiteURLScan.py -u https://example.com
 将多个URL写入 `url.txt`，每行一个，然后：
 
 ```bash
-python WhiteURLScan.py -uf url.txt
+python WhiteURLScan.py -f url.txt
 ```
 
 ### 3. 常用命令行参数
 
 - `-u`      起始URL
-- `-uf`     批量URL文件
+- `-f`     批量URL文件
 - `-workers` 最大线程数（如 30）
 - `-timeout` 请求超时（秒）
 - `-depth`   最大递归深度
@@ -99,6 +99,28 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - 建议合理设置线程数和递归深度，避免对目标站点造成压力
 - 敏感信息检测基于正则表达式，结果仅供参考
 - 请勿将本工具用于非法用途
+
+## TODO
+过滤危险接口
+自定义提取路径
+自定义拼接路径
+POST请求检测
+POST参数检测
+动态api加载
+拼接路径方式优化
+浏览器模拟访问
+
+## 感谢参考
+- AI
+- https://github.com/pingc0y/URLFinder
+- https://github.com/gh0stkey/HaE
+- https://github.com/momosecurity/FindSomething
+- https://github.com/Str1am/Auto_JsFinder
+- https://github.com/Threezh1/JSFinder
+- https://github.com/GerbenJavado/LinkFinder
+- https://github.com/ttstormxx/jjjjjjjjjjjjjs
+- https://github.com/0x727/ChkApi_0x727
+- https://github.com/Snow-Mountain-Passengers/Rotor-Goddess
 
 ## 联系方式
 
