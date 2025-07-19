@@ -2,3 +2,4 @@ results/
 url.txt
 debug.log
 config.json
+__pycache__/
