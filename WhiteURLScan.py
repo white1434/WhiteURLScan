@@ -688,7 +688,7 @@ class URLMatcher(DebugMixin):
                # 危险接口过滤检测
         if self.config.danger_filter_enabled:
             for danger_api in self.config.danger_api_list:
-                if danger_api in normalized and not normalized.endswith(".js"):
+                if danger_api.lower() in normalized.lower() and not normalized.endswith(".js"):
                     # 使用线程锁确保输出安全，并过滤重复
                     with URLMatcher.danger_api_lock:
                         if normalized not in URLMatcher.danger_api_filtered:
@@ -857,7 +857,7 @@ class OutputHandler(DebugMixin):
                 return Fore.RED
             elif 500 <= status < 600:
                 return Fore.MAGENTA
-        elif "Error" in str(status):
+        elif "Err" in str(status):
             return Fore.RED + Style.BRIGHT
         
         return Fore.CYAN
@@ -871,8 +871,8 @@ class OutputHandler(DebugMixin):
             if self.config.debug_mode:
                 self._debug_print(f"处理扫描结果 #{self.url_count}: {result.get('url', '未知URL')}")
             
-            if isinstance(result.get('status'), str) and 'Error' in result['status']:
-                result['status'] = 'Error'
+            if isinstance(result.get('status'), str) and 'Err' in result['status']:
+                result['status'] = 'Err'
         except Exception as e:
             if self.config.debug_mode:
                 self._debug_print(f"初始化输出处理时出错: {type(e).__name__}: {e}")
@@ -905,7 +905,7 @@ class OutputHandler(DebugMixin):
         depth_str = f"[深度:{result['depth']}]"
         status_str = f"[{result['status']}]"
         length_str = f"[{result['length']}]"
-        title_str = f"[{result['title'][:30]}]" if result['title'] else "[]"
+        title_str = f"[{result['title'][:30]:^10}]" if result['title'] else "[===========]"
         time_str = f"[{result['time']:.2f}s]"
         
         # 状态码颜色
@@ -1409,7 +1409,7 @@ class UltimateURLScanner(DebugMixin):
         redirect_chain = []
         final_url = url
         sensitive_info = []
-        status = 'Error'
+        status = 'Err'
         title = ''
         content = b''
         content_type = ''
@@ -1486,13 +1486,13 @@ class UltimateURLScanner(DebugMixin):
             
             # 获取状态码
             try:
-                status = getattr(response, 'status_code', 'Error')
+                status = getattr(response, 'status_code', 'Err')
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 状态码: {status}")
             except Exception as e:
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 获取状态码失败: {e}")
-                status = 'Error'
+                status = 'Err'
             
             # 提取标题
             try:
@@ -1900,7 +1900,7 @@ class UltimateURLScanner(DebugMixin):
                     print(f"\n{Fore.MAGENTA}=== 扫描过程中发现的危险链接汇总 ==={Style.RESET_ALL}")
                     print(f"{Fore.MAGENTA}共发现 {len(URLMatcher.danger_api_filtered)} 个危险链接:{Style.RESET_ALL}")
                     for i, danger_url in enumerate(sorted(URLMatcher.danger_api_filtered), 1):
-                        print(f"{Fore.MAGENTA}[{i:2d}] {danger_url}{Style.RESET_ALL}")
+                        print(f"{Fore.MAGENTA}[{i:3d}] {danger_url}{Style.RESET_ALL}")
                 
                 # 将危险链接写入CSV文件
                 try:
@@ -2053,17 +2053,16 @@ def main():
         
         try:
             parser = argparse.ArgumentParser(description="WhiteURLScan 扫描工具")
-            parser.add_argument('-u', dest='start_url', type=str, help='起始URL，-u -f 必须指定一个')
-            parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL，-u -f 必须指定一个')
-            parser.add_argument('-delay', dest='delay', type=float, help='请求延迟时间（秒），默认0.1秒')
-            parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数，默认30')
-            parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒），默认10')
-            parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度，默认5')
-            parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件，默认results/实时输出文件.csv')
-            parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置，默认不使用代理')
-            parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭，默认0关闭')
-            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开，默认0主域')
-            parser.add_argument('-danger', dest='danger_filter_enabled', type=int, default=1, help='危险接口过滤 1开启 0关闭，默认1开启')
+            parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
+            parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL')
+            parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
+            parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
+            parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
+            parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
+            parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置')
+            parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
+            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开')
+            parser.add_argument('-danger', dest='danger_filter_enabled', type=int, default=1, help='危险接口过滤 1开启 0关闭 (默认: 1)')
             args = parser.parse_args()
         except Exception as e:
             print(f"{Fore.RED}解析命令行参数时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
@@ -2071,7 +2070,7 @@ def main():
 
         # 必须至少输入 --start_url 或 --url_file
         if not args.start_url and not args.url_file:
-            print(f"{Fore.RED}错误：-h 查看帮助 , 必须通过 -u 或 -f 至少指定一个扫描目标！{Style.RESET_ALL}")
+            print(f"{Fore.RED}错误：-h查看帮助 , 必须通过 -u 或 -f 至少指定一个扫描目标！{Style.RESET_ALL}")
             sys.exit(1) 
 
         # 固定从config.json读取配置
@@ -2107,7 +2106,7 @@ def main():
                 "debug_mode": 0,
                 "url_scope_mode": 0,
                 "danger_filter_enabled": 1,
-                "danger_api_list": ["del","delete","insert","logout","remove","drop","shutdown","stop","poweroff","restart","rewrite","terminate","deactivate","halt","disable"]
+                "danger_api_list": ["del","delete","insert","logout","loginout","remove","drop","shutdown","stop","poweroff","restart","rewrite","terminate","deactivate","halt","disable"]
             }
             if not os.path.exists(config_path):
                 with open(config_path, 'w', encoding='utf-8') as f:
@@ -2193,22 +2192,22 @@ def main():
                             url_config = ScannerConfig(
                                 start_url=url,
                                 proxy=get_config_value('proxy'),
-                                delay=get_config_value('delay', 0.1),
+                                delay=config_data.get('delay', 0.1),
                                 max_workers=get_config_value('max_workers', 30),
                                 timeout=get_config_value('timeout', 10),
                                 max_depth=get_config_value('max_depth', 5),
-                                blacklist_domains=get_config_value('blacklist_domains'),
-                                headers=get_config_value('headers'),
+                                blacklist_domains=config_data.get('blacklist_domains'),
+                                headers=config_data.get('headers'),
                                 output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
-                                color_output=get_config_value('color_output', True),
-                                verbose=get_config_value('verbose', True),
+                                color_output=config_data.get('color_output', True),
+                                verbose=config_data.get('verbose', True),
                                 extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
-                                max_urls=get_config_value('max_urls', 10000),
-                                smart_concatenation=get_config_value('smart_concatenation', True),
+                                max_urls=config_data.get('max_urls', 10000),
+                                smart_concatenation=config_data.get('smart_concatenation', True),
                                 debug_mode=get_config_value('debug_mode', 0),
                                 url_scope_mode=get_config_value('url_scope_mode', 0),
                                 danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
-                                danger_api_list=get_config_value('danger_api_list')
+                                danger_api_list=config_data.get('danger_api_list')
                             )
                             scanner = UltimateURLScanner(url_config)
                             scanner.start_scanning()
