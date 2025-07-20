@@ -50,7 +50,10 @@ pip install requests beautifulsoup4 tldextract colorama
 - `max_urls`：最大扫描URL数量
 - `smart_concatenation`：智能URL拼接
 - `debug_mode`：调试模式（0关闭，1开启）
-- `scope`：URL扫描范围模式 0主域 1外部一次 2全放开
+- `scope`：URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式
+- `whitelist_domains`：白名单域名（scope=3时使用）
+- `danger_api_list`：危险API过滤列表
+- `is_duplicate`: fuzz输出重复链接（返回内容相同即视为重复），0关闭 1开启输出
 - 其他参数详见 config.json
 
 ## 使用方法
@@ -80,7 +83,7 @@ python WhiteURLScan.py -f url.txt
 - `-out`     实时输出文件路径
 - `-proxy`   代理（如 http://127.0.0.1:8080）
 - `-debug`   调试模式（1开启，0关闭）
-- `-scope`   URL扫描范围模式 0主域 1外部一次 2全放开
+- `-scope`   URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式
 - `-danger`  危险接口过滤（1开启，0关闭）
   
 示例：
@@ -112,8 +115,9 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - [x] 添加敏感信息检测功能
 - [x] 添加危险接口过滤功能
 - [x] 添加域名黑名单检测功能
-- [ ] 添加域名白名单模式
+- [x] 添加域名白名单模式
 - [ ] 添加指纹识别功能
+- [ ] 添加指定基地址进行拼接功能
 - [ ] 自定义fuzz列表
 - [ ] 自定义api路径
 - [ ] POST请求检测

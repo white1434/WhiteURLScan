@@ -119,11 +119,11 @@ def handle_exceptions(func):
 # ====================== 配置模块 ======================
 class ScannerConfig(DebugMixin):
     def __init__(self, start_url, proxy=None, delay=0, max_workers=10, timeout=10,
-                 max_depth=1, blacklist_domains=None, headers=None, output_file=None,
+                 max_depth=1, blacklist_domains=None, whitelist_domains=None, headers=None, output_file=None,
                  sensitive_patterns=None, color_output=True, verbose=True,
                  extension_blacklist=None, max_urls=5000, smart_concatenation=True,
                  debug_mode=False, url_scope_mode=0, danger_filter_enabled=1,
-                 danger_api_list=None):  # 新增危险接口过滤配置
+                 danger_api_list=None, is_duplicate=0):  # 新增is_duplicate参数
         self.start_url = start_url
         self.proxy = {'http': proxy, 'https': proxy} if proxy else None
         self.delay = delay
@@ -131,15 +131,17 @@ class ScannerConfig(DebugMixin):
         self.timeout = timeout
         self.max_depth = max_depth
         self.blacklist_domains = set(blacklist_domains or [])
+        self.whitelist_domains = set(whitelist_domains or [])
         self.output_file = output_file
         self.color_output = color_output and COLOR_SUPPORT
         self.verbose = verbose
         self.max_urls = max_urls
         self.smart_concatenation = smart_concatenation
         self.debug_mode = debug_mode
-        self.url_scope_mode = int(url_scope_mode)  # 新增
-        self.danger_filter_enabled = int(danger_filter_enabled)  # 新增：危险接口过滤开关
+        self.url_scope_mode = int(url_scope_mode)
+        self.danger_filter_enabled = int(danger_filter_enabled)
         self.danger_api_list = danger_api_list
+        self.is_duplicate = int(is_duplicate)  # 新增
         if start_url and DOMAIN_EXTRACTION:
             ext = tldextract.extract(start_url)
             self.base_domain = f"{ext.domain}.{ext.suffix}"
@@ -251,109 +253,279 @@ class ScannerConfig(DebugMixin):
             'Windows路径': r'(?:[a-zA-Z]:\\\\(?:[^<>:"/\\\\|?*\r\n]+\\\\)*[^<>:"/\\\\|?*\r\n]*)',
             
             # 通用密钥模式
-            'Secret Key OR Private API': r'(access_key|Access-Key|access_token|SecretKey|SecretId|admin_pass|admin_user|algolia_admin_key|algolia_api_key|alias_pass|alicloud_access_key|amazon_secret_access_key|amazonaws|ansible_vault_password|aos_key|api_key|api_key_secret|api_key_sid|api_secret|api\.googlemaps|AIza|apidocs|apikey|apiSecret|app_debug|app_id|app_key|app_log_level|app_secret|appkey|appkeysecret|application_key|appsecret|appspot|auth_token|authorizationToken|authsecret|aws_access|aws_access_key_id|aws_bucket|aws_key|aws_secret|aws_secret_key|aws_token|AWSSecretKey|b2_app_key|bashrc|password|bintray_apikey|bintray_gpg_password|bintray_key|bintraykey|bluemix_api_key|bluemix_pass|browserstack_access_key|bucket_password|bucketeer_aws_access_key_id|bucketeer_aws_secret_access_key|built_branch_deploy_key|bx_password|cache_driver|cache_s3_secret_key|cattle_access_key|cattle_secret_key|certificate_password|ci_deploy_password|client_secret|client_zpk_secret_key|clojars_password|cloud_api_key|cloud_watch_aws_access_key|cloudant_password|cloudflare_api_key|cloudflare_auth_key|cloudinary_api_secret|cloudinary_name|codecov_token|config|conn\.login|connectionstring|consumer_key|consumer_secret|credentials|cypress_record_key|database_password|database_schema_test|datadog_api_key|datadog_app_key|db_password|db_server|db_username|dbpasswd|dbpassword|dbuser|deploy_password|digitalocean_ssh_key_body|digitalocean_ssh_key_ids|docker_hub_password|docker_key|docker_pass|docker_passwd|docker_password|dockerhub_password|dockerhubpassword|dot|files|dotfiles|droplet_travis_password|dynamoaccesskeyid|dynamosecretaccesskey|elastica_host|elastica_port|elasticsearch_password|encryption_key|encryption_password|env\.heroku_api_key|env\.sonatype_password|eureka\.awssecretkey)[a-z0-9_.\-,]{0,25}[a-z0-9A-Z_ .\-,]{0,25}(=|>|:=|\||:|<=|=>|:).{0,5}[\'"]([0-9a-zA-Z\-_=]{6,64})[\'"]',
+            'Secrets': r'(access_key|Access-Key|access_token|SecretKey|SecretId|admin_pass|admin_user|algolia_admin_key|algolia_api_key|alias_pass|alicloud_access_key|amazon_secret_access_key|amazonaws|ansible_vault_password|aos_key|api_key|api_key_secret|api_key_sid|api_secret|api\.googlemaps|AIza|apidocs|apikey|apiSecret|app_debug|app_id|app_key|app_log_level|app_secret|appkey|appkeysecret|application_key|appsecret|appspot|auth_token|authorizationToken|authsecret|aws_access|aws_access_key_id|aws_bucket|aws_key|aws_secret|aws_secret_key|aws_token|AWSSecretKey|b2_app_key|bashrc|password|bintray_apikey|bintray_gpg_password|bintray_key|bintraykey|bluemix_api_key|bluemix_pass|browserstack_access_key|bucket_password|bucketeer_aws_access_key_id|bucketeer_aws_secret_access_key|built_branch_deploy_key|bx_password|cache_driver|cache_s3_secret_key|cattle_access_key|cattle_secret_key|certificate_password|ci_deploy_password|client_secret|client_zpk_secret_key|clojars_password|cloud_api_key|cloud_watch_aws_access_key|cloudant_password|cloudflare_api_key|cloudflare_auth_key|cloudinary_api_secret|cloudinary_name|codecov_token|config|conn\.login|connectionstring|consumer_key|consumer_secret|credentials|cypress_record_key|database_password|database_schema_test|datadog_api_key|datadog_app_key|db_password|db_server|db_username|dbpasswd|dbpassword|dbuser|deploy_password|digitalocean_ssh_key_body|digitalocean_ssh_key_ids|docker_hub_password|docker_key|docker_pass|docker_passwd|docker_password|dockerhub_password|dockerhubpassword|dot|files|dotfiles|droplet_travis_password|dynamoaccesskeyid|dynamosecretaccesskey|elastica_host|elastica_port|elasticsearch_password|encryption_key|encryption_password|env\.heroku_api_key|env\.sonatype_password|eureka\.awssecretkey)[a-z0-9_.\-,]{0,25}[a-z0-9A-Z_ .\-,]{0,25}(=|>|:=|\||:|<=|=>|:).{0,5}[\'"]([0-9a-zA-Z\-_=]{6,64})[\'"]',
         }
 
 # ====================== URL拼接模块 ======================
 class URLConcatenator(DebugMixin):
-    def __init__(self, debug_mode=False):
+    def __init__(self, debug_mode=False, base_url=None, relative_url=None, custom_base_url=None, path_route=None, api_route=None):
         self.debug_mode = debug_mode
-    
-    def smart_concatenation(self, base_url, relative_url):
+        # 支持字符串或列表，统一转为列表
+        self.base_url = base_url
+        self.relative_url = relative_url
+        self.custom_base_url = custom_base_url
+        self.path_route = path_route
+        self.api_route = api_route
+        self.url_list = set()
+
         if self.debug_mode:
-            self._debug_print(f"开始拼接URL: base={base_url}, relative={relative_url}")
-        
-        # 处理协议相对URL (//example.com/path)
-        if relative_url.startswith('//'):
-            base = urllib.parse.urlparse(base_url)
-            result = f"{base.scheme}:{relative_url}"
-            if self.debug_mode:
-                self._debug_print(f"协议相对URL处理: {result}")
-            return result
-        
-        # 处理hash路由（SPA应用）
-        if relative_url.startswith('#/'):
-            base = urllib.parse.urlparse(base_url)
-            # 保留原始URL的hash部分
-            result = f"{base.scheme}://{base.netloc}{base.path}{relative_url}"
-            if self.debug_mode:
-                self._debug_print(f"Hash路由处理: {result}")
-            return result
-        
-        # 处理绝对路径
-        if relative_url.startswith('/'):
-            base = urllib.parse.urlparse(base_url)
-            # 确保路径不以双斜杠开头
-            clean_path = relative_url.lstrip('/')
-            result = f"{base.scheme}://{base.netloc}/{clean_path}"
-            if self.debug_mode:
-                self._debug_print(f"绝对路径处理: {result}")
-            return result
-        
-        # 处理相对路径
-        if relative_url.startswith('./'):
-            base = urllib.parse.urlparse(base_url)
-            base_path = os.path.dirname(base.path) if not base.path.endswith('/') else base.path
-            # 确保路径不以双斜杠开头
-            clean_relative = relative_url[2:].lstrip('/')
-            result = f"{base.scheme}://{base.netloc}{base_path}/{clean_relative}"
-            if self.debug_mode:
-                self._debug_print(f"相对路径处理: {result}")
-            return result
-        
-        # 处理上级目录
-        if relative_url.startswith('../'):
-            base = urllib.parse.urlparse(base_url)
-            path_parts = base.path.split('/')
-            rel_parts = relative_url.split('/')
-            
-            # 计算新的路径深度
-            back_count = 0
-            new_parts = []
-            for part in rel_parts:
-                if part == '..':
-                    back_count += 1
-                else:
-                    new_parts.append(part)
-            
-            # 构建新路径
-            if len(path_parts) > back_count:
-                # 确保路径不以双斜杠开头
-                clean_parts = [p for p in path_parts[:len(path_parts)-back_count] if p]
-                new_path = '/'.join(clean_parts) + '/' + '/'.join(new_parts)
-            else:
-                new_path = '/' + '/'.join(new_parts)
-            
-            # 确保路径格式正确
-            if new_path.startswith('//'):
-                new_path = new_path[1:]
-            result = f"{base.scheme}://{base.netloc}{new_path}"
-            if self.debug_mode:
-                self._debug_print(f"上级目录处理: {result}")
-            return result
-        
-        # 处理完整URL
-        if relative_url.startswith('http'):
-            if self.debug_mode:
-                self._debug_print(f"完整URL直接返回: {relative_url}")
-            return relative_url
-        
-        # 默认拼接 - 使用urljoin但清理双斜杠
-        joined = urllib.parse.urljoin(base_url, relative_url)
-        parsed = urllib.parse.urlparse(joined)
-        # 清理路径中的双斜杠
-        clean_path = re.sub(r'/{2,}', '/', parsed.path)
-        result = urllib.parse.urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            clean_path,
-            parsed.params,
-            parsed.query,
-            parsed.fragment
-        ))
+            self._debug_print(f"初始化URLConcatenator: base_url={self.base_url}, relative_url={self.relative_url}, custom_base_url={self.custom_base_url}, path_route={self.path_route}, api_route={self.api_route}")
+
+    def smart_concatenation(self):
+        results = set()
+        for base_url in self.base_url:
+            for relative_url in self.relative_url:
+                if self.debug_mode:
+                    self._debug_print(f"开始拼接URL: base={base_url}, relative={relative_url}")
+                # 处理协议相对URL (//example.com/path)
+                if relative_url.startswith('//'):
+                    base = urllib.parse.urlparse(base_url)
+                    result = f"{base.scheme}:{relative_url}"
+                    results.add(result)
+                    continue
+                # 处理hash路由（SPA应用）
+                if relative_url.startswith('#/'):
+                    base = urllib.parse.urlparse(base_url)
+                    result = f"{base.scheme}://{base.netloc}{base.path}{relative_url}"
+                    results.add(result)
+                    continue
+                # 处理绝对路径
+                if relative_url.startswith('/'):
+                    base = urllib.parse.urlparse(base_url)
+                    clean_path = relative_url.lstrip('/')
+                    result = f"{base.scheme}://{base.netloc}/{clean_path}"
+                    results.add(result)
+                    continue
+                # 处理相对路径
+                if relative_url.startswith('./'):
+                    base = urllib.parse.urlparse(base_url)
+                    base_path = os.path.dirname(base.path) if not base.path.endswith('/') else base.path
+                    clean_relative = relative_url[2:].lstrip('/')
+                    result = f"{base.scheme}://{base.netloc}{base_path}/{clean_relative}"
+                    results.add(result)
+                    continue
+                # 处理上级目录
+                if relative_url.startswith('../'):
+                    base = urllib.parse.urlparse(base_url)
+                    path_parts = base.path.split('/')
+                    rel_parts = relative_url.split('/')
+                    back_count = 0
+                    new_parts = []
+                    for part in rel_parts:
+                        if part == '..':
+                            back_count += 1
+                        else:
+                            new_parts.append(part)
+                    if len(path_parts) > back_count:
+                        clean_parts = [p for p in path_parts[:len(path_parts)-back_count] if p]
+                        new_path = '/'.join(clean_parts) + '/' + '/'.join(new_parts)
+                    else:
+                        new_path = '/' + '/'.join(new_parts)
+                    if new_path.startswith('//'):
+                        new_path = new_path[1:]
+                    result = f"{base.scheme}://{base.netloc}{new_path}"
+                    results.add(result)
+                    continue
+                # 处理完整URL
+                if relative_url.startswith('http'):
+                    results.add(relative_url)
+                    continue
+                # 默认拼接 - 使用urljoin但清理双斜杠
+                joined = urllib.parse.urljoin(base_url, relative_url)
+                parsed = urllib.parse.urlparse(joined)
+                clean_path = re.sub(r'/{2,}', '/', parsed.path)
+                result = urllib.parse.urlunparse((
+                    parsed.scheme,
+                    parsed.netloc,
+                    clean_path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment
+                ))
+                results.add(result)
+        return list(results)
+
+    def api_concatenation(self):
+        results = set()
+        for base in self.custom_base_url:
+            for route in self.api_route:
+                for rel in self.relative_url:
+                    base_clean = base.rstrip('/')
+                    route_clean = route.strip('/')
+                    rel_clean = rel.lstrip('/')
+                    if route_clean:
+                        result = f"{base_clean}/{route_clean}/{rel_clean}"
+                    else:
+                        result = f"{base_clean}/{rel_clean}"
+                    if self.debug_mode:
+                        self._debug_print(f"API拼接结果: {result}")
+                    results.add(result)
+        return list(results)
+
+    def path_concatenation(self):
+        results = set()
+        for base in self.custom_base_url:
+            for route in self.path_route:
+                for rel in self.relative_url:
+                    base_clean = base.rstrip('/')
+                    route_clean = route.strip('/')
+                    rel_clean = rel.lstrip('/')
+                    if route_clean:
+                        result = f"{base_clean}/{route_clean}/{rel_clean}"
+                    else:
+                        result = f"{base_clean}/{rel_clean}"
+                    if self.debug_mode:
+                        self._debug_print(f"路径拼接结果: {result}")
+                    results.add(result)
+        return list(results)
+
+    def concatenate_urls(self):
+        """拼接URL返回列表"""
         if self.debug_mode:
-            self._debug_print(f"默认拼接处理: {result}")
+            self._debug_print(f"开始拼接: base={self.base_url}, relative_url={self.relative_url} , custom_base_url={self.custom_base_url} , api_route={self.api_route} , path_route={self.path_route}")
+        
+        results = set()
+        # 智能拼接
+        if self.relative_url and self.base_url:
+            results.update(self.smart_concatenation())
+        # API拼接
+        if self.api_route and self.custom_base_url:
+            results.update(self.api_concatenation())
+        # 路径拼接
+        if self.path_route and self.custom_base_url:
+            results.update(self.path_concatenation())
+        if self.debug_mode:
+            self._debug_print(f"批量拼接完成，成功拼接 {len(results)} 个URL")
+        return list(results)
+
+    def custom_api_concatenation(self):
+        """使用自定义基础链接和API路由进行拼接"""
+        if self.debug_mode:
+            self._debug_print(f"开始自定义API拼接: path={self.relative_url}")
+        
+        # 确保自定义基础链接以/结尾
+        if not self.custom_base_url.endswith('/'):
+            base_url = self.custom_base_url + '/'
+        else:
+            base_url = self.custom_base_url
+        
+        # 构建完整的API路由路径
+        full_api_route = self.api_route
+        if full_api_route and not full_api_route.endswith('/'):
+            full_api_route += '/'
+        
+        # 确保相对路径不以/开头
+        if self.relative_url.startswith('/'):
+            self.relative_url = self.relative_url[1:]
+        
+        # 拼接：自定义基础链接 + API路由 + 相对路径
+        result = base_url + full_api_route + self.relative_url
+        
+        if self.debug_mode:
+            self._debug_print(f"自定义API拼接结果: {result}")
+        
         return result
+    
+
+    def url_check(self, url):
+        """简单检查URL格式是否符合规范"""
+        try:
+            # 基本格式检查
+            if not url or not isinstance(url, str):
+                self._debug_print(f"URL格式不符合规范: {url} (空值或非字符串)")
+                return False
+            
+            # 去除首尾空格
+            url = url.strip()
+            if not url:
+                self._debug_print(f"URL格式不符合规范: {url} (空字符串)")
+                return False
+            
+            # 检查URL解析
+            parsed = urllib.parse.urlparse(url)
+            
+            # 检查协议
+            if not parsed.scheme:
+                self._debug_print(f"URL格式不符合规范: {url} (缺少协议)")
+                return False
+            
+            # 检查协议是否有效
+            valid_schemes = ['http', 'https', 'ftp', 'sftp', 'ws', 'wss']
+            if parsed.scheme.lower() not in valid_schemes:
+                self._debug_print(f"URL格式不符合规范: {url} (协议无效: {parsed.scheme})")
+                return False
+            
+            # 检查域名
+            if not parsed.netloc:
+                self._debug_print(f"URL格式不符合规范: {url} (缺少域名)")
+                return False
+            
+            # 检查域名格式
+            domain_parts = parsed.netloc.split('.')
+            if len(domain_parts) < 2:
+                self._debug_print(f"URL格式不符合规范: {url} (域名格式无效: {parsed.netloc})")
+                return False
+            
+            # 检查顶级域名
+            tld = domain_parts[-1]
+            if len(tld) < 2:
+                self._debug_print(f"URL格式不符合规范: {url} (顶级域名无效: {tld})")
+                return False
+            
+            # 检查端口号（如果存在）
+            if ':' in parsed.netloc:
+                host_port = parsed.netloc.split(':')
+                if len(host_port) == 2:
+                    try:
+                        port = int(host_port[1])
+                        if port < 1 or port > 65535:
+                            self._debug_print(f"URL格式不符合规范: {url} (端口号无效: {port})")
+                            return False
+                    except ValueError:
+                        self._debug_print(f"URL格式不符合规范: {url} (端口号格式无效: {host_port[1]})")
+                        return False
+            
+            # 检查URL总长度
+            if len(url) > 2048:
+                self._debug_print(f"URL格式不符合规范: {url} (URL过长: {len(url)}字符)")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self._debug_print(f"URL格式检查异常: {url} (错误: {e})")
+            return False
+    
+    def process_and_return_urls(self):
+        """处理URL列表并返回结果"""
+        # 清空当前列表
+        self.url_list = set()  
+
+        # 如果不是列表，则转为列表
+        if not isinstance(self.base_url, list):
+            self.base_url = [self.base_url]
+        if not isinstance(self.relative_url, list):
+            self.relative_url = [self.relative_url]
+        if not isinstance(self.custom_base_url, list):
+            self.custom_base_url = [self.custom_base_url]
+        if not isinstance(self.path_route, list):
+            self.path_route = [self.path_route]
+        if not isinstance(self.api_route, list):
+            self.api_route = [self.api_route]
+
+        self._debug_print(f"清空当前列表，开始处理URL列表: base={self.base_url}, path={self.relative_url}")
+        
+        # 拼接URL
+        concatenated_urls = self.concatenate_urls()
+        
+        # 添加到内部列表
+        for url in concatenated_urls:
+            if self.url_check(url):
+                self.url_list.add(url)
+        
+        self._debug_print(f"处理完成，返回 {len(self.url_list)} 个URL")
+        
+        return list(self.url_list)
 
 
 # ====================== URL匹配模块 ======================
@@ -386,6 +558,15 @@ class URLMatcher(DebugMixin):
         if self.config.url_scope_mode == 2:
             self._debug_print(f"域名检查通过 (scope模式2): {domain}")
             return True
+        
+        # 如果scope模式为3，则只允许白名单域名
+        if self.config.url_scope_mode == 3:
+            for white_domain in self.config.whitelist_domains:
+                if white_domain in domain:
+                    self._debug_print(f"域名在白名单中 (scope模式3): {domain} (匹配: {white_domain})")
+                    return True
+            self._debug_print(f"域名不在白名单中 (scope模式3): {domain}")
+            return False
 
         # 检查是否属于同一主域或其子域
         if DOMAIN_EXTRACTION:
@@ -682,36 +863,40 @@ class URLMatcher(DebugMixin):
         url = url.replace('\\', '')
 
         # 应用智能拼接
-        if self.config.smart_concatenation:
-            full_url = self.concatenator.smart_concatenation(base_url, url)
-        else:
-            full_url = urllib.parse.urljoin(base_url, url)
-    
-        normalized = full_url        
-        self._debug_print(f"URL处理结果: {url} -> {normalized}")
+        # full_url = self.concatenator.smart_concatenation(base_url, url)
+        self.concatenator.base_url = base_url
+        self.concatenator.relative_url = url
+        self.concatenator.custom_base_url = "https://555109.top/"
+        self.concatenator.path_route = "/#/"
+        self.concatenator.api_route = "/melody/api/v1"
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        url_list = self.concatenator.process_and_return_urls()
+        # print("url_list------------------",url_list)
 
-               # 危险接口过滤检测
-        if self.config.danger_filter_enabled:
-            for danger_api in self.config.danger_api_list:
-                if danger_api.lower() in normalized.lower() and not normalized.endswith(".js"):
-                    # 使用线程锁确保输出安全，并过滤重复
-                    with URLMatcher.danger_api_lock:
-                        if normalized not in URLMatcher.danger_api_filtered:
-                            URLMatcher.danger_api_filtered.add(normalized)
-                            # 紫色输出 - 使用全局输出锁确保不与其他输出混合
-                            with output_lock:
-                                print(Fore.MAGENTA + f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})" + Style.RESET_ALL)
-                            self._debug_print(f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})")
-                        else:
-                            # 重复的危险接口，只记录debug信息
-                            self._debug_print(f"[危险] [危险] [危险] [危险] [重复危险接口] {normalized} 包含 ({danger_api})")
-                    return
+        for normalized in url_list:
+            self._debug_print(f"URL处理结果: {url} -> {normalized}")
+            # 危险接口过滤检测
+            if self.config.danger_filter_enabled:
+                for danger_api in self.config.danger_api_list:
+                    if danger_api.lower() in normalized.lower() and not normalized.endswith(".js"):
+                        # 使用线程锁确保输出安全，并过滤重复
+                        with URLMatcher.danger_api_lock:
+                            if normalized not in URLMatcher.danger_api_filtered:
+                                URLMatcher.danger_api_filtered.add(normalized)
+                                # 紫色输出 - 使用全局输出锁确保不与其他输出混合
+                                with output_lock:
+                                    print(Fore.MAGENTA + f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})" + Style.RESET_ALL)
+                                self._debug_print(f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})")
+                            else:
+                                # 重复的危险接口，只记录debug信息
+                                self._debug_print(f"[危险] [危险] [危险] [危险] [重复危险接口] {normalized} 包含 ({danger_api})")
+                        return
 
-        if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
-            url_set.add(normalized)
-            self._debug_print(f"URL已添加到集合: {normalized}")
-        else:
-            self._debug_print(f"URL被过滤: {normalized}")
+            if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
+                url_set.add(normalized)
+                self._debug_print(f"URL已添加到集合: {normalized}")
+            else:
+                self._debug_print(f"URL被过滤: {normalized}")
 
 
 # ====================== 敏感信息检测模块 ======================
@@ -784,6 +969,7 @@ class OutputHandler(DebugMixin):
         self.url_count = 0
         self.start_time = time.time()
         self.request_signature_count = {}  # 记录请求签名出现次数
+        self.is_duplicate = getattr(config, 'is_duplicate', 0)
         
         # 准备输出文件
         if config.output_file:
@@ -954,14 +1140,13 @@ class OutputHandler(DebugMixin):
                 self._debug_print(f"处理敏感信息显示时出错: {type(e).__name__}: {e}")
             sensitive_str = Fore.RED + Style.BRIGHT + " -> [处理错误]"
             result['sensitive'] = sensitive_str
-        # 重复URL标记 - 使用紫色显示
-        is_duplicate = result.get('is_duplicate', False) or result.get('status') == '重复'
-        if is_duplicate or is_duplicate_signature:
-            # 整行都用紫色
-            # output_line = (
-            #     f"{Fore.MAGENTA}{depth_str}{status_str}{length_str}{title_str}{result['url']}{time_str}{sensitive_str}{Style.RESET_ALL}"
-            # )
-            # 跳过重复请求的输出
+        # 重复URL标记 - 只用签名判断
+        if is_duplicate_signature:
+            if self.is_duplicate == 1:
+                # 可选：输出紫色提示
+                output_line = (f"{Fore.MAGENTA}{depth_str} {status_str} {length_str} {title_str} {result['url']} {time_str} {sensitive_str} {Style.RESET_ALL}")
+                with output_lock:
+                    print(output_line)
             return
         else:
             # 拼接输出行，新增文件类型标签但不影响原有逻辑
@@ -1340,6 +1525,18 @@ class UltimateURLScanner(DebugMixin):
             if black_domain in url:
                 self._debug_print(f"[_http_request] 域名在黑名单中，跳过请求: {url} (匹配: {black_domain})")
                 return None, Exception(f"域名在黑名单中: {url}")
+        
+        # 检查是否在白名单中（scope模式3）
+        if self.config.url_scope_mode == 3:
+            in_whitelist = False
+            for white_domain in self.config.whitelist_domains:
+                if white_domain in url:
+                    in_whitelist = True
+                    self._debug_print(f"[_http_request] 域名在白名单中: {url} (匹配: {white_domain})")
+                    break
+            if not in_whitelist:
+                self._debug_print(f"[_http_request] 域名不在白名单中，跳过请求: {url}")
+                return None, Exception(f"域名不在白名单中: {url}")
 
         # 检查请求数量限制
         with self.request_count_lock:
@@ -1634,8 +1831,20 @@ class UltimateURLScanner(DebugMixin):
         
         # 检查域名是否在黑名单中
         for black_domain in self.config.blacklist_domains:
-            if black_domain in url  :
+            if black_domain in url:
                 self._debug_print(f"[scan_url] 域名在黑名单中，跳过扫描: {url} (匹配: {black_domain})")
+                return None
+        
+        # 检查域名是否在白名单中（scope模式3）
+        if self.config.url_scope_mode == 3:
+            in_whitelist = False
+            for white_domain in self.config.whitelist_domains:
+                if white_domain in url:
+                    in_whitelist = True
+                    self._debug_print(f"[scan_url] 域名在白名单中: {url} (匹配: {white_domain})")
+                    break
+            if not in_whitelist:
+                self._debug_print(f"[scan_url] 域名不在白名单中，跳过扫描: {url}")
                 return None
         
         # 检查URL是否应该跳过
@@ -2078,7 +2287,7 @@ def main():
             parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
             parser.add_argument('-proxy', dest='proxy', type=str, help='代理设置')
             parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
-            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开')
+            parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式')
             parser.add_argument('-danger', dest='danger_filter_enabled', type=int, default=1, help='危险接口过滤 1开启 0关闭 (默认: 1)')
             args = parser.parse_args()
         except Exception as e:
@@ -2100,7 +2309,8 @@ def main():
                 "max_workers": 30,
                 "timeout": 10,
                 "max_depth": 5,
-                "blacklist_domains": ["www.w3.org", "www.baidu.com"],
+                "blacklist_domains": ["www.w3.org", "www.baidu.com", "github.com"],
+                "whitelist_domains": ["example.com", "test.com"],  # 新增白名单域名
                 "headers": {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -2150,6 +2360,7 @@ def main():
                 timeout=get_config_value('timeout', 10),
                 max_depth=get_config_value('max_depth', 5),
                 blacklist_domains=get_config_value('blacklist_domains'),
+                whitelist_domains=get_config_value('whitelist_domains'),
                 headers=get_config_value('headers'),
                 output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
                 color_output=get_config_value('color_output', True),
@@ -2160,7 +2371,8 @@ def main():
                 debug_mode=get_config_value('debug_mode', 0),
                 url_scope_mode=get_config_value('url_scope_mode', 0),
                 danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
-                danger_api_list=get_config_value('danger_api_list')
+                danger_api_list=get_config_value('danger_api_list'),
+                is_duplicate=get_config_value('is_duplicate', 0)
             )
 
             # 打印所有配置
@@ -2171,7 +2383,8 @@ def main():
             print(f"{Fore.CYAN}=== 最大线程: {config.max_workers}")
             print(f"{Fore.CYAN}=== 请求超时: {config.timeout}")
             print(f"{Fore.CYAN}=== 最大深度: {config.max_depth}")
-            print(f"{Fore.CYAN}=== 跳过域名: {config.blacklist_domains}")
+            print(f"{Fore.CYAN}=== 黑域名单: {config.blacklist_domains}")
+            print(f"{Fore.CYAN}=== 白域名单: {config.whitelist_domains}")
             print(f"{Fore.CYAN}=== 请求的头: {config.headers}")
             print(f"{Fore.CYAN}=== 实时文件: {config.output_file}")
             print(f"{Fore.CYAN}=== 彩色输出: {config.color_output}")
@@ -2183,6 +2396,7 @@ def main():
             print(f"{Fore.CYAN}=== 扫描范围: {config.url_scope_mode}")
             print(f"{Fore.CYAN}=== 危险过滤: {config.danger_filter_enabled}")
             print(f"{Fore.CYAN}=== 危险接口: {config.danger_api_list}")
+            print(f"{Fore.CYAN}=== 是否去重: {config.is_duplicate}")
             print(f"{Fore.CYAN}=============================================={Style.RESET_ALL}")
             
             # 如果输入的是-u, 则直接开始扫描
@@ -2209,22 +2423,24 @@ def main():
                             url_config = ScannerConfig(
                                 start_url=url,
                                 proxy=get_config_value('proxy'),
-                                delay=config_data.get('delay', 0.1),
+                                delay=get_config_value('delay', 0.1),
                                 max_workers=get_config_value('max_workers', 30),
                                 timeout=get_config_value('timeout', 10),
                                 max_depth=get_config_value('max_depth', 5),
-                                blacklist_domains=config_data.get('blacklist_domains'),
-                                headers=config_data.get('headers'),
+                                blacklist_domains=get_config_value('blacklist_domains'),
+                                whitelist_domains=get_config_value('whitelist_domains'),
+                                headers=get_config_value('headers'),
                                 output_file=get_config_value('output_file', 'results/实时输出文件.csv'),
-                                color_output=config_data.get('color_output', True),
-                                verbose=config_data.get('verbose', True),
+                                color_output=get_config_value('color_output', True),
+                                verbose=get_config_value('verbose', True),
                                 extension_blacklist=get_config_value('extension_blacklist', ['.css','.mp4']),
-                                max_urls=config_data.get('max_urls', 10000),
-                                smart_concatenation=config_data.get('smart_concatenation', True),
+                                max_urls=get_config_value('max_urls', 10000),
+                                smart_concatenation=get_config_value('smart_concatenation', True),
                                 debug_mode=get_config_value('debug_mode', 0),
                                 url_scope_mode=get_config_value('url_scope_mode', 0),
                                 danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
-                                danger_api_list=config_data.get('danger_api_list')
+                                danger_api_list=get_config_value('danger_api_list'),
+                                is_duplicate=get_config_value('is_duplicate', 0)
                             )
                             scanner = UltimateURLScanner(url_config)
                             scanner.start_scanning()
