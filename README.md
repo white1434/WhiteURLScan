@@ -131,14 +131,14 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 - [x] 指定基地址进行拼接（fuzz）
 - [x] 自定义 fuzz 列表
 - [x] 自定义 api 路径
-- [ ] webpack 打包网站 js 提取
+- [ ] webpack 打包网站 js 提取（匹配效率太低，等待优化）
 - [ ] 指纹识别功能
 - [ ] POST 请求检测
 - [ ] 动态 api 加载
 - [ ] 浏览器模拟访问
 - [ ] 网页返回类型细分
 - [ ] 优化敏感信息匹配
-- [ ] 优化路径匹配
+- [ ] 优化路径匹配 （HAE规则误报太多，等待优化）
 - [ ] 优化拼接方式
 - [ ] 优化代码结构
 
