@@ -24,6 +24,19 @@ output_lock = threading.Lock()
 # 创建输出日志记录器
 import sys
 from datetime import datetime
+# 禁用SSL警告
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+try:
+    from colorama import init, Fore, Style
+    init(autoreset=True)
+    COLOR_SUPPORT = True
+except ImportError:
+    COLOR_SUPPORT = False
+    Fore = Style = type('', (), {'__getattr__': lambda *args: ''})()
+
+
 
 class OutputLogger:
     def __init__(self, log_file="results/output.out"):
@@ -63,18 +76,6 @@ class OutputLogger:
             self.log_stream.close()
         except Exception:
             pass
-
-# 禁用SSL警告
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-try:
-    from colorama import init, Fore, Style
-    init(autoreset=True)
-    COLOR_SUPPORT = True
-except ImportError:
-    COLOR_SUPPORT = False
-    Fore = Style = type('', (), {'__getattr__': lambda *args: ''})()
 
 # 初始化输出日志记录器
 output_logger = OutputLogger()
@@ -531,7 +532,7 @@ class URLConcatenator(DebugMixin):
         if not isinstance(self.api_route, list):
             self.api_route = [self.api_route]
 
-        self._debug_print(f"清空当前列表，开始处理URL列表: base={self.base_url}, path={self.relative_url}")
+        self._debug_print(f"开始处理URL列表: base={self.base_url}, path={self.relative_url}")
         
         # 拼接URL
         concatenated_urls = self.concatenate_urls()
@@ -555,7 +556,6 @@ class URLMatcher(DebugMixin):
     def __init__(self, config, scanner=None):
         self.config = config
         self.debug_mode = config.debug_mode  # 设置debug_mode属性
-        self.concatenator = URLConcatenator(config.debug_mode)
         self.scanner = scanner  # 新增：可选scanner实例
     
     def is_valid_domain(self, url):
@@ -633,9 +633,11 @@ class URLMatcher(DebugMixin):
             self._debug_print(f"初始化URL提取时出错: {type(e).__name__}: {e}")
             return set()
         
-        # 主要匹配模式：捕获引号内的路径字符串
-        # 匹配形式："/path/to/resource" 或 '/path/to/resource' 或 `/path/to/resource`
+        # 主要regex匹配模式：捕获引号内的路径字符串
         path_patterns = [
+            # !!! 新增: HAE Linkfinder 匹配 , 加上误报太多, 暂时关闭
+            # r'''(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;|*()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{3,}(?:[\?|#][^"|']{0,}|))|([a-zA-Z0-9_\-]{1,}\.(?:\w)(?:[\?|#][^"|']{0,}|)))(?:"|')''',
+            
             r'["\'](/[^"\'\s]+)["\']',  # 双引号或单引号包裹的绝对路径
             r'["\'](\.{1,2}/[^"\'\s]+)["\']',  # 双引号或单引号包裹的相对路径
             r'["\'](\\\\*/[^"\'\s]+)["\']',  # 匹配这种"href":"\/admin\/Auth\/adminList.html"
@@ -737,6 +739,18 @@ class URLMatcher(DebugMixin):
             r'<meta\b[^>]*?\bcontent\s*=\s*([^\s>]+)',            # meta标签的content属性（无引号）
         ]
         
+        # webpack 匹配
+        webpack_patterns = [
+            r'"?([\w].*?)"?:"(.*?)"'
+        ]
+        # !!!! webpack 单独匹配
+        # try:
+        #     for pattern in webpack_patterns:
+        #         self._match_webpack_add(pattern, text_content, base_url, urls)
+        # except Exception as e:
+        #     self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
+    
+
         # 匹配主要路径模式
         try:
             for pattern in path_patterns:
@@ -760,6 +774,24 @@ class URLMatcher(DebugMixin):
         self._debug_print(f"URL提取完成，共找到 {len(urls)} 个URL")
         
         return urls
+    
+    def _match_webpack_add(self, pattern, text_content, base_url, url_set):
+        """使用webpack匹配 并添加URL"""
+        try:
+            matches = re.findall(pattern, text_content, re.IGNORECASE)
+            if self.config.debug_mode and matches:
+                self._debug_print(f"使用webpack匹配 '{pattern}' 找到 {len(matches)} 个匹配")
+            
+            for match in matches:
+                # match匹配结果 ('chunk-a2d74a98', '1ea71fd1') 拼接成chunk.a2d74a98.1ea71fd1.js
+                url = f"{match[0]}.{match[1]}.js"
+                
+                self._debug_print(f"处理匹配结果: {url}")
+                
+                self._process_url(url, base_url, url_set, f"Regex: {pattern}")
+        except Exception as e:
+            if self.config.verbose:
+                print(f"URL匹配错误 (模式: {pattern}): {str(e)}")
     
     def _match_and_add(self, pattern, text_content, base_url, url_set):
         """使用正则表达式匹配并添加URL"""
@@ -880,15 +912,15 @@ class URLMatcher(DebugMixin):
         # 去掉url中的所有的'\'
         url = url.replace('\\', '')
 
-        # 应用智能拼接
-        # full_url = self.concatenator.smart_concatenation(base_url, url)
-        self.concatenator.base_url = base_url
-        self.concatenator.relative_url = url
-        self.concatenator.custom_base_url = self.config.custom_base_url
-        self.concatenator.path_route = self.config.path_route
-        self.concatenator.api_route = self.config.api_route
         # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        url_list = self.concatenator.process_and_return_urls()
+        # !!!! 应用智能拼接
+        concatenator = URLConcatenator(self.config.debug_mode)
+        concatenator.base_url = base_url
+        concatenator.relative_url = url
+        concatenator.custom_base_url = self.config.custom_base_url
+        concatenator.path_route = self.config.path_route
+        concatenator.api_route = self.config.api_route
+        url_list = concatenator.process_and_return_urls()
         # print("url_list------------------",url_list)
 
         for normalized in url_list:
@@ -2289,7 +2321,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.1 ===")
         # 增加作者和GitHub地址
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")

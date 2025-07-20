@@ -105,7 +105,7 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 
 - 实时扫描结果会输出到控制台，并保存到 `results/` 目录下的 CSV 文件
 - 外部 URL 访问结果也会自动追加到报告文件
-- 日志文件为 `debug.log`（调试模式下）
+- 日志文件为 `results/output.out`
 
 ![运行结果](https://raw.githubusercontent.com/white1434/WhiteURLScan/refs/heads/main/images/2.jpg)
 
@@ -131,6 +131,7 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 - [x] 指定基地址进行拼接（fuzz）
 - [x] 自定义 fuzz 列表
 - [x] 自定义 api 路径
+- [ ] webpack 打包网站 js 提取
 - [ ] 指纹识别功能
 - [ ] POST 请求检测
 - [ ] 动态 api 加载
