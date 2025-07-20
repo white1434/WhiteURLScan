@@ -123,7 +123,9 @@ class ScannerConfig(DebugMixin):
                  sensitive_patterns=None, color_output=True, verbose=True,
                  extension_blacklist=None, max_urls=5000, smart_concatenation=True,
                  debug_mode=False, url_scope_mode=0, danger_filter_enabled=1,
-                 danger_api_list=None, is_duplicate=0):  # 新增is_duplicate参数
+                 danger_api_list=None, is_duplicate=0,
+                 custom_base_url=None, path_route=None, api_route=None,
+                 fuzz=0):  # 新增 fuzz 参数
         self.start_url = start_url
         self.proxy = {'http': proxy, 'https': proxy} if proxy else None
         self.delay = delay
@@ -141,7 +143,17 @@ class ScannerConfig(DebugMixin):
         self.url_scope_mode = int(url_scope_mode)
         self.danger_filter_enabled = int(danger_filter_enabled)
         self.danger_api_list = danger_api_list
-        self.is_duplicate = int(is_duplicate)  # 新增
+        self.is_duplicate = int(is_duplicate)
+        self.fuzz = int(fuzz)
+        # 根据 fuzz 参数决定是否启用自定义拼接参数
+        if self.fuzz == 1:
+            self.custom_base_url = custom_base_url
+            self.path_route = path_route
+            self.api_route = api_route
+        else:
+            self.custom_base_url = []
+            self.path_route = []
+            self.api_route = []
         if start_url and DOMAIN_EXTRACTION:
             ext = tldextract.extract(start_url)
             self.base_domain = f"{ext.domain}.{ext.suffix}"
@@ -350,6 +362,9 @@ class URLConcatenator(DebugMixin):
         for base in self.custom_base_url:
             for route in self.api_route:
                 for rel in self.relative_url:
+                    if rel.startswith('http'):
+                        results.add(rel)
+                        continue
                     base_clean = base.rstrip('/')
                     route_clean = route.strip('/')
                     rel_clean = rel.lstrip('/')
@@ -367,6 +382,9 @@ class URLConcatenator(DebugMixin):
         for base in self.custom_base_url:
             for route in self.path_route:
                 for rel in self.relative_url:
+                    if rel.startswith('http'):
+                        results.add(rel)
+                        continue
                     base_clean = base.rstrip('/')
                     route_clean = route.strip('/')
                     rel_clean = rel.lstrip('/')
@@ -866,9 +884,9 @@ class URLMatcher(DebugMixin):
         # full_url = self.concatenator.smart_concatenation(base_url, url)
         self.concatenator.base_url = base_url
         self.concatenator.relative_url = url
-        self.concatenator.custom_base_url = "https://555109.top/"
-        self.concatenator.path_route = "/#/"
-        self.concatenator.api_route = "/melody/api/v1"
+        self.concatenator.custom_base_url = self.config.custom_base_url
+        self.concatenator.path_route = self.config.path_route
+        self.concatenator.api_route = self.config.api_route
         # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         url_list = self.concatenator.process_and_return_urls()
         # print("url_list------------------",url_list)
@@ -1556,6 +1574,7 @@ class UltimateURLScanner(DebugMixin):
                 # 使用会话的超时设置，避免重复设置
                 response = self.session.get(
                     url,
+                    timeout=self.config.timeout,
                     proxies=self.config.proxy,
                     verify=False,
                     allow_redirects=True
@@ -2100,7 +2119,7 @@ class UltimateURLScanner(DebugMixin):
         domain = domain.split(':')[0]
         # 去除非字母数字和点
         domain = _re.sub(r'[^a-zA-Z0-9.]', '', domain)
-        dt_str = datetime.now().strftime('%Y%m%d_%H%M')
+        dt_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         return f"results/{domain}_{dt_str}.csv"
 
     def _handle_scan_completion(self, start_time, external_thread):
@@ -2289,6 +2308,7 @@ def main():
             parser.add_argument('-debug', dest='debug_mode', type=int, help='调试模式 1开启 0关闭')
             parser.add_argument('-scope', dest='url_scope_mode', type=int, help='URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式')
             parser.add_argument('-danger', dest='danger_filter_enabled', type=int, default=1, help='危险接口过滤 1开启 0关闭 (默认: 1)')
+            parser.add_argument('-fuzz', dest='fuzz', type=int, default=0, help='是否启用自定义URL拼接参数 1启用 0关闭 (默认: 0)')
             args = parser.parse_args()
         except Exception as e:
             print(f"{Fore.RED}解析命令行参数时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
@@ -2307,7 +2327,7 @@ def main():
                 "proxy": None,
                 "delay": 0.1,
                 "max_workers": 30,
-                "timeout": 10,
+                "timeout": 5,
                 "max_depth": 5,
                 "blacklist_domains": ["www.w3.org", "www.baidu.com", "github.com"],
                 "whitelist_domains": ["example.com", "test.com"],  # 新增白名单域名
@@ -2357,7 +2377,7 @@ def main():
                 proxy=get_config_value('proxy'),
                 delay=get_config_value('delay', 0.1),
                 max_workers=get_config_value('max_workers', 30),
-                timeout=get_config_value('timeout', 10),
+                timeout=get_config_value('timeout', 5),
                 max_depth=get_config_value('max_depth', 5),
                 blacklist_domains=get_config_value('blacklist_domains'),
                 whitelist_domains=get_config_value('whitelist_domains'),
@@ -2372,7 +2392,11 @@ def main():
                 url_scope_mode=get_config_value('url_scope_mode', 0),
                 danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
                 danger_api_list=get_config_value('danger_api_list'),
-                is_duplicate=get_config_value('is_duplicate', 0)
+                is_duplicate=get_config_value('is_duplicate', 0),
+                custom_base_url=get_config_value('custom_base_url', []),
+                path_route=get_config_value('path_route', []),
+                api_route=get_config_value('api_route', []),
+                fuzz=get_config_value('fuzz', 0)
             )
 
             # 打印所有配置
@@ -2397,6 +2421,10 @@ def main():
             print(f"{Fore.CYAN}=== 危险过滤: {config.danger_filter_enabled}")
             print(f"{Fore.CYAN}=== 危险接口: {config.danger_api_list}")
             print(f"{Fore.CYAN}=== 是否去重: {config.is_duplicate}")
+            print(f"{Fore.CYAN}=== 自定地址: {config.custom_base_url}")
+            print(f"{Fore.CYAN}=== 自定路径: {config.path_route}")
+            print(f"{Fore.CYAN}=== 自定API: {config.api_route}")
+            print(f"{Fore.CYAN}=== 启用fuzz: {config.fuzz}")
             print(f"{Fore.CYAN}=============================================={Style.RESET_ALL}")
             
             # 如果输入的是-u, 则直接开始扫描
@@ -2425,7 +2453,7 @@ def main():
                                 proxy=get_config_value('proxy'),
                                 delay=get_config_value('delay', 0.1),
                                 max_workers=get_config_value('max_workers', 30),
-                                timeout=get_config_value('timeout', 10),
+                                timeout=get_config_value('timeout', 5),
                                 max_depth=get_config_value('max_depth', 5),
                                 blacklist_domains=get_config_value('blacklist_domains'),
                                 whitelist_domains=get_config_value('whitelist_domains'),
@@ -2440,7 +2468,11 @@ def main():
                                 url_scope_mode=get_config_value('url_scope_mode', 0),
                                 danger_filter_enabled=get_config_value('danger_filter_enabled', 1),
                                 danger_api_list=get_config_value('danger_api_list'),
-                                is_duplicate=get_config_value('is_duplicate', 0)
+                                is_duplicate=get_config_value('is_duplicate', 0),
+                                custom_base_url=get_config_value('custom_base_url', []),
+                                path_route=get_config_value('path_route', []),
+                                api_route=get_config_value('api_route', []),
+                                fuzz=get_config_value('fuzz', 0)
                             )
                             scanner = UltimateURLScanner(url_config)
                             scanner.start_scanning()
