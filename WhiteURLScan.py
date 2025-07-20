@@ -2289,7 +2289,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.4 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6 ===")
         # 增加作者和GitHub地址
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
