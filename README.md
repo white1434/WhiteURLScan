@@ -111,6 +111,8 @@ python WhiteURLScan.py -u https://example.com -workers 20 -timeout 8 -depth 3 -d
 - [x] 添加参数配置功能
 - [x] 添加敏感信息检测功能
 - [x] 添加危险接口过滤功能
+- [x] 添加域名黑名单检测功能
+- [ ] 添加域名白名单模式
 - [ ] 添加指纹识别功能
 - [ ] 自定义fuzz列表
 - [ ] 自定义api路径

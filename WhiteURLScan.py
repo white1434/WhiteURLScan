@@ -369,18 +369,23 @@ class URLMatcher(DebugMixin):
         self.scanner = scanner  # 新增：可选scanner实例
     
     def is_valid_domain(self, url):
-        if self.config.url_scope_mode == 2:
-            return True  # 完全放开
         parsed = urllib.parse.urlparse(url)
         domain = parsed.netloc
         
         self._debug_print(f"检查域名有效性: {domain}")
         
-        # 检查黑名单
+        # 检查黑名单（无论scope模式如何，都应该检查黑名单）
         for black_domain in self.config.blacklist_domains:
             if black_domain in domain:
+                # 紫色输出
+                # print(f"\033[95m{domain}域名在黑名单中: {domain} (匹配: {black_domain})\033[0m")
                 self._debug_print(f"域名在黑名单中: {domain} (匹配: {black_domain})")
                 return False
+
+        # 如果scope模式为2，则跳过域名范围检查，但仍然会检查黑名单
+        if self.config.url_scope_mode == 2:
+            self._debug_print(f"域名检查通过 (scope模式2): {domain}")
+            return True
 
         # 检查是否属于同一主域或其子域
         if DOMAIN_EXTRACTION:
@@ -695,11 +700,11 @@ class URLMatcher(DebugMixin):
                             URLMatcher.danger_api_filtered.add(normalized)
                             # 紫色输出 - 使用全局输出锁确保不与其他输出混合
                             with output_lock:
-                                print(Fore.MAGENTA + f"[危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})" + Style.RESET_ALL)
-                            self._debug_print(f"[危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})")
+                                print(Fore.MAGENTA + f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})" + Style.RESET_ALL)
+                            self._debug_print(f"[危险] [危险] [危险] [危险] [跳过危险接口] {normalized} 包含 ({danger_api})")
                         else:
                             # 重复的危险接口，只记录debug信息
-                            self._debug_print(f"[危险] [危险] [危险] [重复危险接口已跳过] {normalized} 包含 ({danger_api})")
+                            self._debug_print(f"[危险] [危险] [危险] [危险] [重复危险接口] {normalized} 包含 ({danger_api})")
                     return
 
         if normalized and self.is_valid_domain(normalized) and not self.should_skip_url(normalized):
@@ -1330,6 +1335,12 @@ class UltimateURLScanner(DebugMixin):
         response = None
         last_exception = None
         
+        # 检查是否在黑名单中
+        for black_domain in self.config.blacklist_domains:
+            if black_domain in url:
+                self._debug_print(f"[_http_request] 域名在黑名单中，跳过请求: {url} (匹配: {black_domain})")
+                return None, Exception(f"域名在黑名单中: {url}")
+
         # 检查请求数量限制
         with self.request_count_lock:
             if self.request_count >= self.max_requests:
@@ -1620,6 +1631,12 @@ class UltimateURLScanner(DebugMixin):
             if self.config.debug_mode:
                 self._debug_print(f"[scan_url] 跳过URL扫描: {url} (深度: {depth}, 最大深度: {self.config.max_depth}, running: {self.running})")
             return None
+        
+        # 检查域名是否在黑名单中
+        for black_domain in self.config.blacklist_domains:
+            if black_domain in url  :
+                self._debug_print(f"[scan_url] 域名在黑名单中，跳过扫描: {url} (匹配: {black_domain})")
+                return None
         
         # 检查URL是否应该跳过
         if self.url_matcher.should_skip_url(url):
