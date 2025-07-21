@@ -272,7 +272,8 @@ class ScannerConfig(DebugMixin):
 # ====================== URL拼接模块 ======================
 class URLConcatenator(DebugMixin):
     def __init__(self, debug_mode=False, base_url=None, relative_url=None, custom_base_url=None, path_route=None, api_route=None):
-        self.debug_mode = debug_mode
+        # self.debug_mode = debug_mode
+        self.debug_mode = False
         # 支持字符串或列表，统一转为列表
         self.base_url = base_url
         self.relative_url = relative_url
@@ -282,14 +283,14 @@ class URLConcatenator(DebugMixin):
         self.url_list = set()
 
         if self.debug_mode:
-            self._debug_print(f"初始化URLConcatenator: base_url={self.base_url}, relative_url={self.relative_url}, custom_base_url={self.custom_base_url}, path_route={self.path_route}, api_route={self.api_route}")
+            self._debug_print(f"[URLConcatenator]初始化URLConcatenator: base_url={self.base_url}, relative_url={self.relative_url}, custom_base_url={self.custom_base_url}, path_route={self.path_route}, api_route={self.api_route}")
 
     def smart_concatenation(self):
         results = set()
         for base_url in self.base_url:
             for relative_url in self.relative_url:
                 if self.debug_mode:
-                    self._debug_print(f"开始拼接URL: base={base_url}, relative={relative_url}")
+                    self._debug_print(f"[smart_concatenation]开始拼接URL: base={base_url}, relative={relative_url}")
                 # 处理协议相对URL (//example.com/path)
                 if relative_url.startswith('//'):
                     base = urllib.parse.urlparse(base_url)
@@ -374,7 +375,7 @@ class URLConcatenator(DebugMixin):
                     else:
                         result = f"{base_clean}/{rel_clean}"
                     if self.debug_mode:
-                        self._debug_print(f"API拼接结果: {result}")
+                        self._debug_print(f"[api_concatenation]API拼接结果: {result}")
                     results.add(result)
         return list(results)
 
@@ -394,14 +395,14 @@ class URLConcatenator(DebugMixin):
                     else:
                         result = f"{base_clean}/{rel_clean}"
                     if self.debug_mode:
-                        self._debug_print(f"路径拼接结果: {result}")
+                        self._debug_print(f"[path_concatenation]路径拼接结果: {result}")
                     results.add(result)
         return list(results)
 
     def concatenate_urls(self):
         """拼接URL返回列表"""
         if self.debug_mode:
-            self._debug_print(f"开始拼接: base={self.base_url}, relative_url={self.relative_url} , custom_base_url={self.custom_base_url} , api_route={self.api_route} , path_route={self.path_route}")
+            self._debug_print(f"[concatenate_urls]开始拼接: base={self.base_url}, relative_url={self.relative_url} , custom_base_url={self.custom_base_url} , api_route={self.api_route} , path_route={self.path_route}")
         
         results = set()
         # 智能拼接
@@ -414,13 +415,13 @@ class URLConcatenator(DebugMixin):
         if self.path_route and self.custom_base_url:
             results.update(self.path_concatenation())
         if self.debug_mode:
-            self._debug_print(f"批量拼接完成，成功拼接 {len(results)} 个URL")
+            self._debug_print(f"[concatenate_urls]批量拼接完成，成功拼接 {len(results)} 个URL")
         return list(results)
 
     def custom_api_concatenation(self):
         """使用自定义基础链接和API路由进行拼接"""
         if self.debug_mode:
-            self._debug_print(f"开始自定义API拼接: path={self.relative_url}")
+            self._debug_print(f"[custom_api_concatenation]开始自定义API拼接: path={self.relative_url}")
         
         # 确保自定义基础链接以/结尾
         if not self.custom_base_url.endswith('/'):
@@ -532,7 +533,7 @@ class URLConcatenator(DebugMixin):
         if not isinstance(self.api_route, list):
             self.api_route = [self.api_route]
 
-        self._debug_print(f"开始处理URL列表: base={self.base_url}, path={self.relative_url}")
+        self._debug_print(f"[process_and_return_urls]开始处理URL列表: base={self.base_url}, path={self.relative_url}")
         
         # 拼接URL
         concatenated_urls = self.concatenate_urls()
@@ -542,7 +543,7 @@ class URLConcatenator(DebugMixin):
             if self.url_check(url):
                 self.url_list.add(url)
         
-        self._debug_print(f"处理完成，返回 {len(self.url_list)} 个URL")
+        self._debug_print(f"[process_and_return_urls]处理完成，返回 {len(self.url_list)} 个URL")
         
         return list(self.url_list)
 
@@ -604,7 +605,7 @@ class URLMatcher(DebugMixin):
         parsed = urllib.parse.urlparse(url)
         path = parsed.path.lower()
         
-        self._debug_print(f"检查URL是否跳过: {url}")
+        # self._debug_print(f"检查URL是否跳过: {url}")
         
         # 检查扩展名黑名单
         for ext in self.config.extension_blacklist:
@@ -786,8 +787,6 @@ class URLMatcher(DebugMixin):
                 # match匹配结果 ('chunk-a2d74a98', '1ea71fd1') 拼接成chunk.a2d74a98.1ea71fd1.js
                 url = f"{match[0]}.{match[1]}.js"
                 
-                self._debug_print(f"处理匹配结果: {url}")
-                
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
             if self.config.verbose:
@@ -808,7 +807,7 @@ class URLMatcher(DebugMixin):
                 else:
                     url = match
                 
-                self._debug_print(f"处理匹配结果: {url}")
+                # self._debug_print(f"处理匹配结果: {url}  匹配规则 -> {pattern} , base_url -> {base_url}")
                 
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
@@ -868,6 +867,8 @@ class URLMatcher(DebugMixin):
     def _process_url(self, url, base_url, url_set, source=""):
         """!!!处理单个接口，拼接成URL，添加到集合中"""
 
+        self._debug_print(f"处理单个接口: {url} , base_url -> {base_url} , source -> {source}")
+
         if not url or url.strip() == "":
             self._debug_print(f"跳过空URL")
             return
@@ -912,6 +913,9 @@ class URLMatcher(DebugMixin):
         # 去掉url中的所有的'\'
         url = url.replace('\\', '')
 
+        # 增加base_url和 relative_url同时出现重复的判断，如果重复，则不进行拼接 
+        # 
+
         # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # !!!! 应用智能拼接
         concatenator = URLConcatenator(self.config.debug_mode)
@@ -924,7 +928,7 @@ class URLMatcher(DebugMixin):
         # print("url_list------------------",url_list)
 
         for normalized in url_list:
-            self._debug_print(f"URL处理结果: {url} -> {normalized}")
+            self._debug_print(f"URL处理结果:{base_url} + {url} -> {normalized}")
             # 危险接口过滤检测
             if self.config.danger_filter_enabled:
                 for danger_api in self.config.danger_api_list:
@@ -1252,7 +1256,7 @@ class OutputHandler(DebugMixin):
                         sensitive_types,  # 敏感信息类型
                         sensitive_counts,  # 敏感信息数量
                         sensitive_details,  # 敏感信息详细清单
-                        '是' if result.get('is_duplicate', False) else '否'  # 添加重复标记列
+                        '是' if result.get('is_duplicate_signature', False) else '否'  # 添加重复标记列
                     ])
                 
                 if self.config.debug_mode:
@@ -1299,7 +1303,7 @@ class OutputHandler(DebugMixin):
                             sensitive_types,  # 敏感信息类型
                             sensitive_counts,  # 敏感信息数量
                             sensitive_details,  # 敏感信息详细清单
-                            '是' if result.get('is_duplicate', False) else '否'
+                            '是' if result.get('is_duplicate_signature', False) else '否'
                         ])
                     except Exception as e:
                         if self.config.debug_mode:
@@ -1362,7 +1366,7 @@ class OutputHandler(DebugMixin):
                             sensitive_types,  # 敏感信息类型
                             sensitive_counts,  # 敏感信息数量
                             sensitive_details,  # 敏感信息详细清单
-                            '是' if result.get('is_duplicate', False) else '否'
+                            '是' if result.get('is_duplicate_signature', False) else '否'
                         ])
                     except Exception as e:
                         if self.config.debug_mode:
@@ -1595,9 +1599,14 @@ class UltimateURLScanner(DebugMixin):
                 return None, Exception("达到最大请求数限制")
             self.request_count += 1
             current_request_count = self.request_count
-        
-        self._debug_print(f"[_http_request] 开始请求: {url} (请求计数: {current_request_count}/{self.max_requests})")
-        self._debug_print(f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}")
+
+        # 输出当前线程情况
+        try:    
+            self._debug_print(f"[_http_request] 开始请求: {url} (请求计数: {current_request_count}/{self.max_requests})\n"
+                            f"[_http_request] 配置: proxy={self.config.proxy}, timeout={self.config.timeout}\n"
+                            f"[_http_request] 目前线程和队列情况: {threading.active_count()}, 主队列: {self.url_queue.qsize()}, 外部队列: {self.external_url_queue.qsize()}")
+        except Exception as e:
+            self._debug_print(f"[_http_request] 输出请求信息失败: {type(e).__name__}: {e}")
         
         for attempt in range(max_retries):
             try:
@@ -1769,8 +1778,9 @@ class UltimateURLScanner(DebugMixin):
                             soup = BeautifulSoup(content, 'html.parser')
                     
                     t = soup.title
+                    # 处理标题中的特殊字符和换行符
                     if t and t.string:
-                        title = t.string.strip()
+                        title = t.string.strip().replace('\n', '').replace('\r', '')
                         if self.config.debug_mode:
                             self._debug_print(f"[_build_result] 提取到标题: {title[:50]}...")
                     else:
@@ -2321,7 +2331,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.1 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.2 ===")
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
         print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")
@@ -2451,7 +2461,7 @@ def main():
             print(f"{Fore.CYAN}=== 扫描范围: {config.url_scope_mode}")
             print(f"{Fore.CYAN}=== 危险过滤: {config.danger_filter_enabled}")
             print(f"{Fore.CYAN}=== 危险接口: {config.danger_api_list}")
-            print(f"{Fore.CYAN}=== 是否去重: {config.is_duplicate}")
+            print(f"{Fore.CYAN}=== 开启重复: {config.is_duplicate}")
             print(f"{Fore.CYAN}=== 自定地址: {config.custom_base_url}")
             print(f"{Fore.CYAN}=== 自定路径: {config.path_route}")
             print(f"{Fore.CYAN}=== 自定API: {config.api_route}")
