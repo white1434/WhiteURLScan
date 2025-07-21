@@ -1620,7 +1620,7 @@ class UltimateURLScanner(DebugMixin):
                     verify=False,
                     allow_redirects=True
                 )
-                
+            
                 self._debug_print(f"[_http_request] 请求成功: url={url}, status_code={response.status_code}, elapsed={response.elapsed}")
                 
                 return response, None
@@ -1682,10 +1682,12 @@ class UltimateURLScanner(DebugMixin):
         content = b''
         content_type = ''
         headers_info = {}
+
+
         
         if response is not None:
             self._debug_print(f"[_build_result] 处理响应对象: status_code={getattr(response, 'status_code', 'N/A')}")
-            
+    
             # 获取响应时间
             try:
                 elapsed = getattr(response, 'elapsed', None)
@@ -1719,17 +1721,22 @@ class UltimateURLScanner(DebugMixin):
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 获取最终URL失败: {e}, 使用原始URL: {url}")
                 final_url = url
-            
+
             # 获取响应内容
             try:
-                content = getattr(response, 'content', b'')
+                # 解码网页内容，避免乱码
+                if response.encoding:
+                    content = response.content.decode(response.encoding) # 使用正确的编码格式解码网页内容    
+                else:
+                    content = response.content.decode('utf-8') # 使用正确的编码格式解码网页内容    
+                # content = getattr(response, 'content', b'')
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 响应内容长度: {len(content)} 字节")
             except Exception as e:
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 获取响应内容失败: {e}")
-                content = b''
-            
+                content = response.content
+
             # 获取响应头信息
             try:
                 headers_info = dict(response.headers) if hasattr(response, 'headers') else {}
@@ -1950,6 +1957,7 @@ class UltimateURLScanner(DebugMixin):
         
         # HTTP请求
         response, error = self._http_request(url)
+
         
         # 输出请求统计信息（仅在debug模式下）
         if self.config.debug_mode:
@@ -2332,7 +2340,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.3 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.4 ===")
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
         print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")

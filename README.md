@@ -36,7 +36,21 @@ pip install -r requirements.txt
 ```bash
 pip install requests beautifulsoup4 tldextract colorama
 ```
+## 运行参数
 
+- `-u`       起始URL
+- `-f`       批量URL文件
+- `-delay`    延迟时间（秒）
+- `-workers` 最大线程数（如 30）
+- `-timeout` 请求超时（秒）
+- `-depth`   最大递归深度
+- `-out`     实时输出文件路径
+- `-proxy`   代理（如 http://127.0.0.1:8080）
+- `-debug`   调试模式（1开启，0关闭）
+- `-scope`   URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式
+- `-danger`  危险接口过滤（1开启，0关闭）
+- `-fuzz`   自定义 URL 拼接
+  
 ## 配置说明
 
 首次运行会自动生成 `config.json`，可根据实际需求修改：
@@ -87,19 +101,6 @@ python WhiteURLScan.py -f url.txt -workers 20 -delay 1 -timeout 8 -depth 3
 python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0.0.1:8080
 ```
 
-- `-u`       起始URL
-- `-f`       批量URL文件
-- `-delay`    延迟时间（秒）
-- `-workers` 最大线程数（如 30）
-- `-timeout` 请求超时（秒）
-- `-depth`   最大递归深度
-- `-out`     实时输出文件路径
-- `-proxy`   代理（如 http://127.0.0.1:8080）
-- `-debug`   调试模式（1开启，0关闭）
-- `-scope`   URL扫描范围模式 0主域 1外部一次 2全放开 3白名单模式
-- `-danger`  危险接口过滤（1开启，0关闭）
-- `-fuzz`   自定义 URL 拼接
-  
 
 ## 输出说明
 
@@ -114,7 +115,7 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 - 建议合理设置线程数、递归深度、延迟时间，避免对目标站点造成压力
 - 递归深度过大时，程序会扫描所有页面链接后自动结束，注意最大 URL 数量限制
 - 敏感信息检测基于正则表达式，结果仅供参考，欢迎补充
-- fuzz 模式适合接口批量爆破、路径探测等高级用法，普通扫描建议关闭
+- fuzz 模式（需配置自定义参数）适合接口批量爆破、路径探测等高级用法，普通扫描建议关闭
 - 请勿将本工具用于非法用途
 
 ## TODO
@@ -128,9 +129,9 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 - [x] 域名黑名单检测功能
 - [x] 域名白名单模式
 - [x] 自定义请求头功能
-- [x] 指定基地址进行拼接（fuzz）
-- [x] 自定义 fuzz 列表
-- [x] 自定义 api 路径
+- [x] 自定义 base url 进行拼接（需启用 fuzz 模式）
+- [x] 自定义 fuzz 列表（需启用 fuzz 模式）
+- [x] 自定义 api 路径（需启用 fuzz 模式）
 - [ ] webpack 打包网站 js 提取（匹配效率太低，等待优化）
 - [ ] 指纹识别功能
 - [ ] POST 请求检测
