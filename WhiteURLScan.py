@@ -861,8 +861,7 @@ class URLMatcher(DebugMixin):
             self._debug_print(f"BeautifulSoup提取完成，共处理 {bs_count} 个属性")
                 
         except Exception as e:
-            if self.config.verbose:
-                print(f"BeautifulSoup解析错误: {str(e)}")
+            self._debug_print(f"BeautifulSoup解析错误: {str(e)}")
     
     def _process_url(self, url, base_url, url_set, source=""):
         """!!!处理单个接口，拼接成URL，添加到集合中"""
@@ -1137,6 +1136,7 @@ class OutputHandler(DebugMixin):
         count = self.request_signature_count.get(req_signature, 0)
         self.request_signature_count[req_signature] = count + 1
         is_duplicate_signature = count > 0
+        result['is_duplicate_signature'] = is_duplicate_signature
         # 记录到debug.log
         if self.config.debug_mode:
             log_line = (
@@ -1781,6 +1781,7 @@ class UltimateURLScanner(DebugMixin):
                     # 处理标题中的特殊字符和换行符
                     if t and t.string:
                         title = t.string.strip().replace('\n', '').replace('\r', '')
+                        
                         if self.config.debug_mode:
                             self._debug_print(f"[_build_result] 提取到标题: {title[:50]}...")
                     else:
@@ -2331,7 +2332,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.2 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.3 ===")
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
         print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")
