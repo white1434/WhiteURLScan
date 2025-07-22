@@ -2362,6 +2362,7 @@ def main():
             parser.add_argument('-u', dest='start_url', type=str, help='起始URL')
             parser.add_argument('-f', dest='url_file', type=str, help='批量URL文件，每行一个URL')
             parser.add_argument('-workers', dest='max_workers', type=int, help='最大线程数')
+            parser.add_argument('-delay', dest='delay', type=float, help='请求延迟（秒）')
             parser.add_argument('-timeout', dest='timeout', type=int, help='请求超时（秒）')
             parser.add_argument('-depth', dest='max_depth', type=int, help='最大递归深度')
             parser.add_argument('-out', dest='output_file', type=str, help='实时输出文件')
