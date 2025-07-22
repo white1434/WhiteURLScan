@@ -558,6 +558,7 @@ class URLMatcher(DebugMixin):
         self.config = config
         self.debug_mode = config.debug_mode  # 设置debug_mode属性
         self.scanner = scanner  # 新增：可选scanner实例
+        self.visited_urls_global = set()
     
     def is_valid_domain(self, url):
         parsed = urllib.parse.urlparse(url)
@@ -742,14 +743,15 @@ class URLMatcher(DebugMixin):
         
         # webpack 匹配
         webpack_patterns = [
-            r'"?([\w].*?)"?:"(.*?)"'
+            # r'"?([\w].*?)"?:"(.*?)"'  # !!! HAE 匹配规则，效率太低，大页面匹配re函数会卡死，暂时关闭
+            r'"(chunk-[\w\d]+)":"([\w\d]+)"'
         ]
         # !!!! webpack 单独匹配
-        # try:
-        #     for pattern in webpack_patterns:
-        #         self._match_webpack_add(pattern, text_content, base_url, urls)
-        # except Exception as e:
-        #     self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
+        try:
+            for pattern in webpack_patterns:
+                self._match_webpack_add(pattern, text_content, base_url, urls)
+        except Exception as e:
+            self._debug_print(f"匹配主要路径模式时出错: {type(e).__name__}: {e}")
     
 
         # 匹配主要路径模式
@@ -782,12 +784,20 @@ class URLMatcher(DebugMixin):
             matches = re.findall(pattern, text_content, re.IGNORECASE)
             if self.config.debug_mode and matches:
                 self._debug_print(f"使用webpack匹配 '{pattern}' 找到 {len(matches)} 个匹配")
-            
-            for match in matches:
-                # match匹配结果 ('chunk-a2d74a98', '1ea71fd1') 拼接成chunk.a2d74a98.1ea71fd1.js
-                url = f"{match[0]}.{match[1]}.js"
-                
-                self._process_url(url, base_url, url_set, f"Regex: {pattern}")
+            if matches:
+                for match in matches:
+                    # match匹配结果 ('chunk-a2d74a98', '1ea71fd1') 拼接成chunk.a2d74a98.1ea71fd1.js
+                    url = f"{match[0]}.{match[1]}.js"
+                    if len(url) < 28 and len(url) > 20:
+                        # 对base_url进行处理，只保留根路径，然后拼接url
+                        parsed = urllib.parse.urlparse(base_url)
+                        root_url = f"{parsed.scheme}://{parsed.netloc}/"
+                         # !!! 暂时固定死拼接路径，后期可以优化
+                        full_url = urllib.parse.urljoin(root_url, f"static/js/{url}") 
+                        if full_url not in UltimateURLScanner.visited_urls_global and 'chunk' in full_url:
+                            url_set.add(full_url)
+                    
+                    # self._process_url(url, base_url, url_set, f"Regex: {pattern}")
         except Exception as e:
             if self.config.verbose:
                 print(f"URL匹配错误 (模式: {pattern}): {str(e)}")
@@ -810,6 +820,7 @@ class URLMatcher(DebugMixin):
                 # self._debug_print(f"处理匹配结果: {url}  匹配规则 -> {pattern} , base_url -> {base_url}")
                 
                 self._process_url(url, base_url, url_set, f"Regex: {pattern}")
+
         except Exception as e:
             if self.config.verbose:
                 print(f"URL匹配错误 (模式: {pattern}): {str(e)}")
@@ -1726,16 +1737,16 @@ class UltimateURLScanner(DebugMixin):
             try:
                 # 解码网页内容，避免乱码
                 if response.encoding:
-                    content = response.content.decode(response.encoding) # 使用正确的编码格式解码网页内容    
+                    content = response.content.decode(response.encoding, errors='ignore') # 使用正确的编码格式解码网页内容    
                 else:
-                    content = response.content.decode('utf-8') # 使用正确的编码格式解码网页内容    
+                    content = response.content.decode('utf-8', errors='ignore') # 使用正确的编码格式解码网页内容    
                 # content = getattr(response, 'content', b'')
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 响应内容长度: {len(content)} 字节")
             except Exception as e:
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 获取响应内容失败: {e}")
-                content = response.content
+                content = b''
 
             # 获取响应头信息
             try:
@@ -2340,8 +2351,8 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.4 ===")
-        print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/White-URL-Scan/WhiteURLScan")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.5 ===")
+        print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/white1434/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
         print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")
         print(f"{Fore.CYAN}=== 扫描开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
