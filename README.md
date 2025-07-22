@@ -97,6 +97,10 @@ python WhiteURLScan.py -f url.txt -workers 20 -delay 1 -timeout 8 -depth 3
 
 ### 3. 启用自定义 URL 拼接（fuzz 模式）
 
+```bash
+python WhiteURLScan.py -f url.txt -fuzz 1 -proxy http://127.0.0.1:8080
+```
+
 需要在配置文件中配置自定义参数custom_base_url、path_route、api_route
 如下会自动拼接，`https://example.com/#/扫描到的路径` ， `https://example.com/melody/api/v1/扫描到的路径`
 ```bash
@@ -104,7 +108,11 @@ python WhiteURLScan.py -f url.txt -workers 20 -delay 1 -timeout 8 -depth 3
   "path_route": ["/#/"],
   "api_route": ["/melody/api/v1"],
 ```
-### 4. 自定义扫描泛微（scope 模式）
+### 4. 自定义扫描范围（scope 模式）
+
+```bash
+python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0.0.1:8080
+```
 
 URL 扫描范围模式 0 主域、 1 外部链接只访问一次 、2 无限制 、3 白名单模式（只访问白名单域名）
 
@@ -114,10 +122,6 @@ URL 扫描范围模式 0 主域、 1 外部链接只访问一次 、2 无限制 
 - `-scope 2` : 扫描所有链接，停止只看`-depth`深度（会在外站递归）和`max_urls`限制
 - `-scope 3` : 扫描白名单域名（需配置白名单参数），只扫描`whitelist_domains`白名单内域名
 
-```bash
-python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0.0.1:8080
-```
-![运行结果](https://raw.githubusercontent.com/white1434/WhiteURLScan/refs/heads/main/images/5.jpg)
 
 ## 输出说明
 
@@ -127,7 +131,7 @@ python WhiteURLScan.py -f url.txt -fuzz 1 -scope 3 -danger 1 -proxy http://127.0
 
 ![运行结果](https://raw.githubusercontent.com/white1434/WhiteURLScan/refs/heads/main/images/4.jpg)
 
-![运行结果](https://raw.githubusercontent.com/white1434/WhiteURLScan/refs/heads/main/images/6.jpg)
+![运行结果](https://raw.githubusercontent.com/white1434/WhiteURLScan/refs/heads/main/images/5.jpg)
 
 ## 常见问题与建议
 
