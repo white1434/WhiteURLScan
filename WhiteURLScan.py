@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 import argparse
 import json
+import chardet  # 新增自动编码检测
 
 output_lock = threading.Lock()
 
@@ -182,7 +183,7 @@ class ScannerConfig(DebugMixin):
         self.sensitive_patterns = sensitive_patterns or self.default_sensitive_patterns()
         if self.debug_mode:
             logging.basicConfig(
-                filename='debug.log',
+                filename='results/debug.log',
                 filemode='a',
                 format='%(asctime)s %(levelname)s %(message)s',
                 level=logging.DEBUG,
@@ -1117,23 +1118,107 @@ class OutputHandler(DebugMixin):
         
         return Fore.CYAN
     
+    def format_result_line(self, result):
+        """格式化终端输出行，返回字符串（含颜色）"""
+        try:
+            depth_str = f"[深度:{result['depth']}]"
+            status_str = f"[{result['status']}]"
+            length_str = f"[{result['length']}]"
+            title_str = f"[{result['title'][:30]:^10}]" if result['title'] else "[===========]"
+            time_str = f"[{result['time']:.2f}s]"
+            status_color = self.get_status_color(result['status'])
+            url_path = result['url'].split('?')[0] if 'url' in result else ''
+            filename = url_path.split('/')[-1]
+            if '.' in filename:
+                ext = filename.split('.')[-1].upper()
+                file_type_str = f"[{ext}]"
+                file_type_color = Fore.LIGHTCYAN_EX
+            else:
+                file_type_str = "[接口]"
+                file_type_color = Fore.RED
+            # 敏感信息显示
+            sensitive_str = ""
+            if result.get('sensitive_raw'):
+                sensitive_types = []
+                for item in result['sensitive_raw']:
+                    if isinstance(item, dict):
+                        sensitive_type = item.get('type', '未知')
+                        count = item.get('count', 0)
+                        display_format = f"{sensitive_type}X{count}"
+                        sensitive_types.append(display_format)
+                    else:
+                        sensitive_types.append(str(item))
+                sensitive_str = Fore.RED + Style.BRIGHT + f" -> [{'，'.join(sensitive_types)}]"
+            # 重复URL标记
+            is_duplicate_signature = result.get('is_duplicate_signature', False)
+            if is_duplicate_signature and self.is_duplicate == 1:
+                return (f"{Fore.MAGENTA}{depth_str} {status_str} {length_str} {title_str} {result['url']} {time_str} {sensitive_str} {Style.RESET_ALL}")
+            # 正常输出
+            return (
+                f"{Fore.BLUE}{depth_str}{Style.RESET_ALL} "
+                f"{status_color}{status_str}{Style.RESET_ALL} "
+                f"{Fore.WHITE}{length_str}{Style.RESET_ALL} "
+                f"{file_type_color}{file_type_str}{Style.RESET_ALL} "
+                f"{Fore.CYAN}{title_str}{Style.RESET_ALL} "
+                f"{Fore.WHITE}{result['url']}{Style.RESET_ALL} "
+                f"{Fore.YELLOW}{time_str}{Style.RESET_ALL}"
+                f"{sensitive_str}"
+            )
+        except Exception as e:
+            return f"{Fore.RED}格式化输出行出错: {type(e).__name__}: {e}{Style.RESET_ALL}"
+
+    def print_result_line(self, line):
+        """只负责终端输出"""
+        with output_lock:
+            print(line)
+
+    def write_result_to_csv(self, result, file_path=None):
+        """只负责写入一行到CSV"""
+        try:
+            if not file_path:
+                file_path = self.config.output_file
+            with open(file_path, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
+                url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
+                filename = url_path.split('/')[-1]
+                if '.' in filename:
+                    ext = filename.split('.')[-1].upper()
+                    link_type = ext
+                else:
+                    link_type = "接口"
+                writer.writerow([
+                    result.get('url', ''),
+                    result.get('status', ''),
+                    result.get('title', ''),
+                    result.get('length', 0),
+                    link_type,
+                    result.get('redirects', ''),
+                    result.get('depth', 0),
+                    sensitive_types,
+                    sensitive_counts,
+                    sensitive_details,
+                    '是' if result.get('is_duplicate_signature', False) else '否'
+                ])
+        except Exception as e:
+            if self.config.debug_mode:
+                self._debug_print(f"写入CSV文件时出错: {type(e).__name__}: {e}")
+            print(f"{Fore.RED}写入CSV文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
+
     def realtime_output(self, result):
-        """彩色实时输出扫描结果"""
+        """彩色实时输出扫描结果，调度格式化、输出、写入文件"""
         try:
             self.url_count += 1
             elapsed_time = time.time() - self.start_time
-            
             if self.config.debug_mode:
                 self._debug_print(f"处理扫描结果 #{self.url_count}: {result.get('url', '未知URL')}")
-            
             if isinstance(result.get('status'), str) and 'Err' in result['status']:
                 result['status'] = 'Err'
         except Exception as e:
             if self.config.debug_mode:
                 self._debug_print(f"初始化输出处理时出错: {type(e).__name__}: {e}")
             return
-
-        # 生成请求签名（长度、状态、返回内容hash）
+        # 生成请求签名
         content_hash = ''
         if 'content' in result and result['content'] is not None:
             try:
@@ -1148,262 +1233,55 @@ class OutputHandler(DebugMixin):
         self.request_signature_count[req_signature] = count + 1
         is_duplicate_signature = count > 0
         result['is_duplicate_signature'] = is_duplicate_signature
-        # 记录到debug.log
-        if self.config.debug_mode:
-            log_line = (
-                f"URL: {result['url']} | 状态: {result['status']} | 长度: {result['length']} | 内容hash: {content_hash} | 重复签名: {is_duplicate_signature} | 深度: {result['depth']}"
-            )
-            try:
-                logging.debug(log_line)
-            except Exception:
-                pass
-        # 构建输出行
-        depth_str = f"[深度:{result['depth']}]"
-        status_str = f"[{result['status']}]"
-        length_str = f"[{result['length']}]"
-        title_str = f"[{result['title'][:30]:^10}]" if result['title'] else "[===========]"
-        time_str = f"[{result['time']:.2f}s]"
-        
-        # 状态码颜色
-        status_color = self.get_status_color(result['status'])
-        
-        # 敏感信息显示
-        sensitive_str = ""
-        try:
-            if result.get('sensitive_raw'):
-                # 处理结构化敏感信息格式
-                sensitive_types = []
-                for item in result['sensitive_raw']:
-                    try:
-                        if isinstance(item, dict):
-                            # 结构化格式：字典结构
-                            sensitive_type = item.get('type', '未知')
-                            count = item.get('count', 0)
-                            samples = item.get('samples', [])
-                            
-                            # 构建显示格式：类型X数量
-                            display_format = f"{sensitive_type}X{count}"
-                            sensitive_types.append(display_format)
-                            
-                            if self.config.debug_mode:
-                                self._debug_print(f"处理敏感信息: {sensitive_type} x{count} 个样本")
-                        else:
-                            # 其他格式，直接转为字符串
-                            sensitive_types.append(str(item))
-                    except Exception as e:
-                        if self.config.debug_mode:
-                            self._debug_print(f"处理敏感信息项时出错: {type(e).__name__}: {e}")
-                        sensitive_types.append("处理错误")
-                
-                sensitive_str = Fore.RED + Style.BRIGHT + f" -> [{'，'.join(sensitive_types)}]"
-
-                if self.config.debug_mode:
-                    self._debug_print(f"发现敏感信息: {'，'.join(sensitive_types)}")
-                result['sensitive'] = sensitive_str
-        except Exception as e:
-            if self.config.debug_mode:
-                self._debug_print(f"处理敏感信息显示时出错: {type(e).__name__}: {e}")
-            sensitive_str = Fore.RED + Style.BRIGHT + " -> [处理错误]"
-            result['sensitive'] = sensitive_str
-        # 重复URL标记 - 只用签名判断
         if is_duplicate_signature:
             if self.is_duplicate == 1:
-                # 可选：输出紫色提示
-                output_line = (f"{Fore.MAGENTA}{depth_str} {status_str} {length_str} {title_str} {result['url']} {time_str} {sensitive_str} {Style.RESET_ALL}")
-                with output_lock:
-                    print(output_line)
+                line = self.format_result_line(result)
+                self.print_result_line(line)
             return
         else:
-            # 拼接输出行，新增文件类型标签但不影响原有逻辑
-            url_path = result['url'].split('?')[0] if 'url' in result else ''
-            filename = url_path.split('/')[-1]
-            if '.' in filename:
-                # 正确提取文件扩展名：取最后一个点之后的部分
-                ext = filename.split('.')[-1].upper()
-                file_type_str = f"[{ext}]"
-                file_type_color = Fore.LIGHTCYAN_EX
-                link_type = ext
+            line = self.format_result_line(result)
+            if self.config.verbose:
+                self.print_result_line(line)
             else:
-                file_type_str = "[接口]"
-                file_type_color = Fore.RED
-                link_type = "接口"
-            output_line = (
-                f"{Fore.BLUE}{depth_str}{Style.RESET_ALL} "
-                f"{status_color}{status_str}{Style.RESET_ALL} "
-                f"{Fore.WHITE}{length_str}{Style.RESET_ALL} "
-                f"{file_type_color}{file_type_str}{Style.RESET_ALL} "
-                f"{Fore.CYAN}{title_str}{Style.RESET_ALL} "
-                f"{Fore.WHITE}{result['url']}{Style.RESET_ALL} "
-                f"{Fore.YELLOW}{time_str}{Style.RESET_ALL}"
-                f"{sensitive_str}"
-            )
-            result['link_type'] = link_type  # 新增：写入结果中
-        
-        # 显示进度
-        if self.config.verbose:
-            with output_lock:
-                print(output_line)
-        else:
-            with output_lock:
-                print(output_line)
-        
-        # 写入CSV文件
+                self.print_result_line(line)
         if self.config.output_file:
-            try:
-                with open(self.config.output_file, 'a', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    
-                    # 处理敏感信息数据用于CSV保存
-                    sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                    
-                    writer.writerow([
-                        result.get('url', ''),
-                        result.get('status', ''),
-                        result.get('title', ''),
-                        result.get('length', 0),
-                        result.get('link_type', ''),  # 链接类型
-                        result.get('redirects', ''),
-                        result.get('depth', 0),
-                        sensitive_types,  # 敏感信息类型
-                        sensitive_counts,  # 敏感信息数量
-                        sensitive_details,  # 敏感信息详细清单
-                        '是' if result.get('is_duplicate_signature', False) else '否'  # 添加重复标记列
-                    ])
-                
-                if self.config.debug_mode:
-                    self._debug_print(f"结果已写入CSV文件")
-            except Exception as e:
-                if self.config.debug_mode:
-                    self._debug_print(f"写入CSV文件时出错: {type(e).__name__}: {e}")
-                print(f"{Fore.RED}写入CSV文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
-    
+            self.write_result_to_csv(result, self.config.output_file)
+
     def generate_report(self, results, report_file="full_report.csv"):
-        """生成最终扫描报告"""
+        """生成最终扫描报告，遍历结果调用write_result_to_csv"""
         try:
             if self.config.debug_mode:
                 self._debug_print(f"开始生成最终报告: {report_file}")
                 self._debug_print(f"报告包含 {len(results)} 个扫描结果")
-            
             os.makedirs(os.path.dirname(os.path.abspath(report_file)), exist_ok=True)
             with open(report_file, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(['URL', '状态', '标题', '长度', '链接类型', '重定向', '深度', '敏感信息类型', '敏感信息数量', '敏感信息详细清单', '是否重复'])
-                for result in results:
-                    try:
-                        # 自动补充link_type
-                        url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
-                        filename = url_path.split('/')[-1]
-                        if '.' in filename:
-                            # 正确提取文件扩展名：取最后一个点之后的部分
-                            ext = filename.split('.')[-1].upper()
-                            link_type = ext
-                        else:
-                            link_type = "接口"
-                        
-                        # 处理敏感信息数据用于CSV保存
-                        sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                        
-                        writer.writerow([
-                            result.get('url', ''),
-                            result.get('status', ''),
-                            result.get('title', ''),
-                            result.get('length', 0),
-                            result.get('link_type', link_type),  # 链接类型
-                            result.get('redirects', ''),
-                            result.get('depth', 0),
-                            sensitive_types,  # 敏感信息类型
-                            sensitive_counts,  # 敏感信息数量
-                            sensitive_details,  # 敏感信息详细清单
-                            '是' if result.get('is_duplicate_signature', False) else '否'
-                        ])
-                    except Exception as e:
-                        if self.config.debug_mode:
-                            self._debug_print(f"处理单个结果时出错: {type(e).__name__}: {e}")
-                        print(f"{Fore.RED}处理结果时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
-                        # 写入错误行
-                        writer.writerow([
-                            result.get('url', '错误URL'),
-                            '处理错误',
-                            f'错误: {type(e).__name__}',
-                            0,
-                            '错误',
-                            '',
-                            0,
-                            '处理错误',
-                            '0',
-                            f'错误: {type(e).__name__}',
-                            '否'
-                        ])
+            for result in results:
+                self.write_result_to_csv(result, report_file)
         except Exception as e:
             if self.config.debug_mode:
                 self._debug_print(f"生成报告时出错: {type(e).__name__}: {e}")
             print(f"{Fore.RED}生成报告失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
-        
         if self.config.debug_mode:
             self._debug_print(f"最终报告生成完成: {report_file}")
-        
-        # 扫描完成
         with output_lock:
-            print(f"\n\n扫描完成! 共扫描 {len(results)} 个URL")
-            print(f"完整报告已保存至: {report_file}")
+            print(f"\n\n{Fore.GREEN}扫描完成! 共扫描 {len(results)} 个URL{Style.RESET_ALL} ")
+            print(f"{Fore.GREEN}完整报告已保存至: {report_file}{Style.RESET_ALL} ")
+            print(f"{Fore.GREEN}=============================================={Style.RESET_ALL} ")
 
     def append_results(self, results, report_file="full_report.csv"):
-        """追加写入扫描结果到报告文件（不写表头）"""
+        """追加写入扫描结果到报告文件（不写表头），遍历结果调用write_result_to_csv"""
         try:
-            with open(report_file, 'a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                for result in results:
-                    try:
-                        url_path = result.get('url', '').split('?')[0] if result.get('url') else ''
-                        filename = url_path.split('/')[-1]
-                        if '.' in filename:
-                            # 正确提取文件扩展名：取最后一个点之后的部分
-                            ext = filename.split('.')[-1].upper()
-                            link_type = ext
-                        else:
-                            link_type = "接口"
-                        
-                        # 处理敏感信息数据用于CSV保存
-                        sensitive_types, sensitive_counts, sensitive_details = self._format_sensitive_data_for_csv(result.get('sensitive_raw'))
-                        
-                        writer.writerow([
-                            result.get('url', ''),
-                            result.get('status', ''),
-                            result.get('title', ''),
-                            result.get('length', 0),
-                            result.get('link_type', link_type),  # 链接类型
-                            result.get('redirects', ''),
-                            result.get('depth', 0),
-                            sensitive_types,  # 敏感信息类型
-                            sensitive_counts,  # 敏感信息数量
-                            sensitive_details,  # 敏感信息详细清单
-                            '是' if result.get('is_duplicate_signature', False) else '否'
-                        ])
-                    except Exception as e:
-                        if self.config.debug_mode:
-                            self._debug_print(f"追加单个结果时出错: {type(e).__name__}: {e}")
-                        print(f"{Fore.RED}追加结果时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
-                        # 写入错误行
-                        writer.writerow([
-                            result.get('url', '错误URL'),
-                            '处理错误',
-                            f'错误: {type(e).__name__}',
-                            0,
-                            '错误',
-                            '',
-                            0,
-                            '处理错误',
-                            '0',
-                            f'错误: {type(e).__name__}',
-                            '否'
-                        ])
+            for result in results:
+                self.write_result_to_csv(result, report_file)
         except Exception as e:
             if self.config.debug_mode:
                 self._debug_print(f"追加结果到文件时出错: {type(e).__name__}: {e}")
             print(f"{Fore.RED}追加结果到文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
 
     def output_external_unvisited(self, urls, report_file=None):
-        """输出未访问的外部URL，全部紫色，写入文件"""
+        """输出未访问的外部URL，全部紫色，写入文件（标准格式）"""
         try:
             from colorama import Fore, Style
             for url in urls:
@@ -1413,19 +1291,25 @@ class OutputHandler(DebugMixin):
                     )
                     with output_lock:
                         print(output_line)
-                    # 写入文件
+                    # 构造标准result字典
+                    result = {
+                        'url': url,
+                        'status': '外部',
+                        'title': '外部',
+                        'length': 0,
+                        'redirects': '',
+                        'depth': 0,
+                        'time': 0,
+                        'sensitive': '',
+                        'sensitive_raw': [],
+                        'is_duplicate_signature': False,
+                        'content_type': '',
+                        'headers_count': 0,
+                        'error_type': None,
+                        'original_url': url,
+                    }
                     if report_file:
-                        try:
-                            with open(report_file, 'a', newline='', encoding='utf-8') as f:
-                                import csv
-                                writer = csv.writer(f)
-                                writer.writerow([
-                                    url, '外部', '外部', '外部', '外部', '外部', '外部', '', '', '', '否'
-                                ])
-                        except Exception as e:
-                            if self.config.debug_mode:
-                                self._debug_print(f"写入外部URL到文件时出错: {type(e).__name__}: {e}")
-                            print(f"{Fore.RED}写入外部URL到文件失败: {type(e).__name__}: {e}{Style.RESET_ALL}")
+                        self.write_result_to_csv(result, report_file)
                 except Exception as e:
                     if self.config.debug_mode:
                         self._debug_print(f"处理外部URL时出错: {type(e).__name__}: {e}")
@@ -1735,18 +1619,30 @@ class UltimateURLScanner(DebugMixin):
 
             # 获取响应内容
             try:
-                # 解码网页内容，避免乱码
-                if response.encoding:
-                    content = response.content.decode(response.encoding, errors='ignore') # 使用正确的编码格式解码网页内容    
+                # 默认先用 requests 推断的编码
+                content_bytes = response.content
+                encoding = None
+
+                # 优先用 response.encoding（但有些网站会错误地标成 ISO-8859-1）
+                if response.encoding and response.encoding.lower() != 'iso-8859-1':
+                    encoding = response.encoding
                 else:
-                    content = response.content.decode('utf-8', errors='ignore') # 使用正确的编码格式解码网页内容    
-                # content = getattr(response, 'content', b'')
+                    # 用 chardet 检测编码
+                    detected = chardet.detect(content_bytes)
+                    encoding = detected.get('encoding', 'utf-8')
+
+                try:
+                    content = content_bytes.decode(encoding, errors='replace')
+                except Exception:
+                    # 兜底用 utf-8
+                    content = content_bytes.decode('utf-8', errors='replace')
+
                 if self.config.debug_mode:
-                    self._debug_print(f"[_build_result] 响应内容长度: {len(content)} 字节")
+                    self._debug_print(f"[_build_result] 响应内容长度: {len(content)} 字节, 编码: {encoding}")
             except Exception as e:
                 if self.config.debug_mode:
                     self._debug_print(f"[_build_result] 获取响应内容失败: {e}")
-                content = b''
+                content = ''
 
             # 获取响应头信息
             try:
@@ -1796,10 +1692,19 @@ class UltimateURLScanner(DebugMixin):
                             soup = BeautifulSoup(content, 'html.parser')
                     
                     t = soup.title
-                    # 处理标题中的特殊字符和换行符
+                    # 处理标题中的特殊字符和换行符，并防止乱码
                     if t and t.string:
-                        title = t.string.strip().replace('\n', '').replace('\r', '')
-                        
+                        title = t.string
+                        # 处理 bytes 类型标题
+                        if isinstance(title, bytes):
+                            detected = chardet.detect(title)
+                            encoding = detected.get('encoding', 'utf-8')
+                            try:
+                                title = title.decode(encoding, errors='replace')
+                            except Exception:
+                                title = title.decode('utf-8', errors='replace')
+                        # 处理 str 类型标题
+                        title = str(title).strip().replace('\n', '').replace('\r', '')
                         if self.config.debug_mode:
                             self._debug_print(f"[_build_result] 提取到标题: {title[:50]}...")
                     else:
@@ -2050,21 +1955,45 @@ class UltimateURLScanner(DebugMixin):
                 # 扫描URL
                 try:
                     result = self.scan_url(url, depth)
-                    self._process_url_result(url, depth, result, result_list, lock)
+                    # 优化：外部线程收集的结果全部标准化
+                    if is_external:
+                        if result is None:
+                            # 构造标准外链result
+                            result = {
+                                'url': url,
+                                'status': '外部',
+                                'title': '外部',
+                                'length': 0,
+                                'redirects': '',
+                                'depth': depth,
+                                'time': 0,
+                                'sensitive': '',
+                                'sensitive_raw': [],
+                                'is_duplicate_signature': False,
+                                'content_type': '',
+                                'headers_count': 0,
+                                'error_type': None,
+                                'original_url': url,
+                            }
+                        if lock:
+                            with lock:
+                                result_list.append(result)
+                        else:
+                            result_list.append(result)
+                    else:
+                        self._process_url_result(url, depth, result, result_list, lock)
+                    self._debug_print(f"成功处理URL: {url}")
                 except Exception as e:
                     error_count += 1
                     if self.config.debug_mode:
                         self._debug_print(f"[worker_loop] URL扫描异常: {type(e).__name__}: {e}, url={url}, depth={depth}, 线程={thread_name}")
-                
                 # 标记任务完成
                 self._safe_queue_task_done(queue_obj)
-                        
             except Exception as e:
                 error_count += 1
                 if self.config.debug_mode:
                     self._debug_print(f"[worker_loop] {'外部URL' if is_external else '工作'}线程主循环异常: {type(e).__name__}: {e}, 线程: {thread_name}")
                 self._safe_queue_task_done(queue_obj)
-        
         if self.config.debug_mode:
             self._debug_print(f"[worker_loop] {'外部URL' if is_external else '工作'}线程结束: {thread_name}, 处理={processed_count}, 错误={error_count}")
 
@@ -2351,7 +2280,7 @@ class UltimateURLScanner(DebugMixin):
 def main():
     try:
         print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.5 ===")
+        print(f"{Fore.YELLOW}=== WhiteURLScan v1.6.6 ===")
         print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/white1434/WhiteURLScan")
         print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
         print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")
@@ -2506,6 +2435,10 @@ def main():
                     
                     print(f"{Fore.YELLOW}从文件读取到 {len(urls)} 个URL，开始批量扫描...{Style.RESET_ALL}")
                     
+                    all_results = []  # 新增：用于汇总所有扫描结果
+                    all_external_results = []  # 新增：用于汇总所有外链结果
+                    all_danger_results = []  # 新增：用于汇总所有危险接口
+                    batch_summary_file = f"results/all_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                     for i, url in enumerate(urls, 1):
                         try:
                             print(f"{Fore.CYAN}[{i}/{len(urls)}] 开始扫描: {url}{Style.RESET_ALL}")
@@ -2538,9 +2471,54 @@ def main():
                             )
                             scanner = UltimateURLScanner(url_config)
                             scanner.start_scanning()
+                            # 新增：收集每个URL的扫描结果
+                            if hasattr(scanner, 'results'):
+                                all_results.extend(scanner.results)
+                            # 新增：收集外链结果
+                            if hasattr(scanner, 'external_results'):
+                                # print(f"{Fore.CYAN}收集到外链结果: {scanner.external_results}{Style.RESET_ALL}")
+                                all_external_results.extend(scanner.external_results)
+                            # 新增：收集危险接口（全局集合，需转为结果格式）
+                            if hasattr(scanner, 'config') and hasattr(scanner, 'output_handler'):
+                                for danger_url in URLMatcher.danger_api_filtered:
+                                    # 检测危险类型
+                                    danger_types = []
+                                    for danger_api in scanner.config.danger_api_list:
+                                        if danger_api in danger_url and not danger_url.endswith(".js"):
+                                            danger_types.append(danger_api)
+                                    danger_type_str = ", ".join(danger_types) if danger_types else "未知"
+                                    danger_result = {
+                                        'url': danger_url,
+                                        'status': '危险',
+                                        'title': '危险接口',
+                                        'length': 0,
+                                        'redirects': '',
+                                        'depth': 0,
+                                        'time': 0,
+                                        'sensitive': danger_type_str,
+                                        'sensitive_raw': [{'type': danger_type_str, 'count': 1, 'samples': [danger_url]}],
+                                        'is_duplicate_signature': False,
+                                        'content_type': '',
+                                        'headers_count': 0,
+                                        'error_type': None,
+                                        'original_url': url,
+                                    }
+                                    all_danger_results.append(danger_result)
                         except Exception as e:
                             print(f"{Fore.RED}扫描URL {url} 时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
                             continue
+                    # 新增：批量扫描结束后，统一输出汇总文件（主域+外链+危险接口）
+                    output_handler = OutputHandler(url_config)
+                    if all_results:
+                        output_handler.generate_report(all_results, batch_summary_file)
+                    if all_external_results:
+                        output_handler.append_results(all_external_results, batch_summary_file)
+                    if all_danger_results:
+                        output_handler.append_results(all_danger_results, batch_summary_file)
+                    if all_results or all_external_results or all_danger_results:
+                        print(f"{Fore.GREEN}所有扫描结果（含外链/危险接口）已汇总到: {batch_summary_file}{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.YELLOW}未收集到任何扫描结果，未生成汇总文件。{Style.RESET_ALL}")
                 except Exception as e:
                     print(f"{Fore.RED}处理URL文件时出错: {type(e).__name__}: {e}{Style.RESET_ALL}")
                     sys.exit(1)

@@ -156,6 +156,7 @@ URL 扫描范围模式 0 主域、 1 外部链接只访问一次 、2 无限制 
 - [x] 自定义 fuzz 列表（需启用 fuzz 模式）
 - [x] 自定义 api 路径（需启用 fuzz 模式）
 - [x] webpack 打包网站 js 提取（暂时只匹配 chunk.a2d74a98.1ea71fd1.js 格式，且固定为 /static/js/chunk.a2d74a98.1ea71fd1.js 路径 ）
+- [x] 多链接扫描结果汇总
 - [ ] 指纹识别功能
 - [ ] POST 请求检测
 - [ ] 动态 api 加载
