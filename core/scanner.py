@@ -909,7 +909,7 @@ class UltimateURLScanner(DebugMixin):
             # 生成外部URL访问报告
             try:
                 if hasattr(self, 'external_results') and self.external_results:
-                    self.output_handler.append_results(self.external_results, report_filename)
+                    # self.output_handler.append_results(self.external_results, report_filename)  # 重复了，所以注释掉
                     print(f"{Fore.GREEN}外部URL访问结束，结果已追加写入: {report_filename}{Style.RESET_ALL}")
             except Exception as e:
                 if self.config.debug_mode:
