@@ -849,33 +849,30 @@ class UltimateURLScanner(DebugMixin):
                 
                 # 将危险链接写入CSV文件
                 try:
-                    with open(report_filename, 'a', newline='', encoding='utf-8') as f:
-                        writer = csv.writer(f)
-                        
-                        # 写入每个危险链接，使用与正常扫描结果相同的格式
-                        for i, danger_url in enumerate(sorted(URLMatcher.danger_api_filtered), 1):
-                            # 检测危险类型
-                            danger_types = []
-                            for danger_api in self.config.danger_api_list:
-                                if danger_api in danger_url and not danger_url.endswith(".js"):
-                                    danger_types.append(danger_api)
-                            
-                            danger_type_str = ", ".join(danger_types) if danger_types else "未知"
-                            
-                            # 使用与正常扫描结果相同的列格式：URL, 状态, 标题, 长度, 链接类型, 重定向, 深度, 敏感信息类型, 敏感信息数量, 敏感信息详细清单, 是否重复
-                            writer.writerow([
-                                danger_url,           # URL
-                                '危险',               # 状态
-                                '危险接口',           # 标题
-                                0,                    # 长度
-                                '危险',               # 链接类型
-                                '',                   # 重定向
-                                0,                    # 深度
-                                danger_type_str,      # 敏感信息类型
-                                '1',                  # 敏感信息数量
-                                f'危险接口: {danger_type_str}',  # 敏感信息详细清单
-                                '否'                  # 是否重复
-                            ])
+                    danger_results = []
+                    for danger_url in URLMatcher.danger_api_filtered:
+                        danger_types = []
+                        for danger_api in self.config.danger_api_list:
+                            if danger_api in danger_url and not danger_url.endswith(".js"):
+                                danger_types.append(danger_api)
+                        danger_type_str = ", ".join(danger_types) if danger_types else "未知"
+                        danger_results.append({
+                            'url': danger_url,
+                            'status': '危险',
+                            'title': '危险接口',
+                            'length': 0,
+                            'redirects': '',
+                            'depth': 0,
+                            'time': 0,
+                            'sensitive': danger_type_str,
+                            'sensitive_raw': danger_url,
+                            'is_duplicate_signature': False,
+                            'content_type': '',
+                            'headers_count': 0,
+                            'error_type': None,
+                            'original_url': danger_url,
+                        })
+                    self.output_handler.append_results(danger_results, report_filename)
                     print(f"{Fore.MAGENTA}\n危险链接已经追加到报告文件: {report_filename} \n {Style.RESET_ALL}")
                     if self.config.debug_mode:
                         self._debug_print(f"危险链接已经追加到报告文件: {report_filename}")

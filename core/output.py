@@ -5,6 +5,7 @@ import time
 from colorama import Fore, Style
 import threading
 from utils.debug import DebugMixin
+import json
 
 # ====================== 输出处理模块 ======================
 class OutputHandler(DebugMixin):
@@ -147,6 +148,26 @@ class OutputHandler(DebugMixin):
             )
         except Exception as e:
             return f"{Fore.RED}格式化输出行出错: {type(e).__name__}: {e}{Style.RESET_ALL}"
+
+    def print_info(self, msg):
+        with self.output_lock:
+            print(Fore.CYAN + str(msg) + Style.RESET_ALL)
+    def print_warning(self, msg):
+        with self.output_lock:
+            print(Fore.YELLOW + str(msg) + Style.RESET_ALL)
+    def print_error(self, msg):
+        with self.output_lock:
+            print(Fore.RED + str(msg) + Style.RESET_ALL)
+    def print_debug(self, msg):
+        if self.config.debug_mode:
+            with self.output_lock:
+                print(Fore.MAGENTA + "[DEBUG] " + str(msg) + Style.RESET_ALL)
+    def write_json(self, filename, data):
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    def read_json(self, filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
     def print_result_line(self, line):
         """只负责终端输出"""
