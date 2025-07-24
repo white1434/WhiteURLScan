@@ -214,6 +214,7 @@ def main():
                     batch_summary_file = f"results/all_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                     for i, url in enumerate(urls, 1):
                         try:
+                            print(f"{Fore.CYAN}=============================================={Style.RESET_ALL}")
                             print(f"{Fore.CYAN}[{i}/{len(urls)}] 开始扫描: {url}{Style.RESET_ALL}")
                             # 为每个URL创建独立的配置实例
                             url_config = ScannerConfig(
