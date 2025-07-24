@@ -1,24 +1,8 @@
-import re
-import time
-import queue
 import threading
-import csv
-import requests
 import os
 import sys
-import urllib.parse
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
-from collections import defaultdict
-import logging
-import hashlib
-import warnings
-from bs4 import XMLParsedAsHTMLWarning, MarkupResemblesLocatorWarning
-warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 import argparse
 import json
-import chardet  # 新增自动编码检测
 from colorama import Fore, Style
 # 拆分结构导入
 from core.scanner import UltimateURLScanner
@@ -28,7 +12,6 @@ from core.url_matcher import URLMatcher
 from core.sensitive import SensitiveDetector
 from core.url_concat import URLConcatenator
 from utils.logger import OutputLogger
-from utils.debug import DebugMixin
 
 output_logger = OutputLogger()  # 提升到全局作用域
 
@@ -50,29 +33,11 @@ except ImportError:
     Fore = Style = type('', (), {'__getattr__': lambda *args: ''})()
 
 
-
 try:
     import tldextract
     DOMAIN_EXTRACTION = True
 except ImportError:
     DOMAIN_EXTRACTION = False
-
-# ====================== 通用调试输出 Mixin ======================
-class DebugMixin:
-    def __init__(self, debug_mode=False):
-        self.debug_mode = debug_mode
-
-
-    def _debug_print(self, message):
-        if hasattr(self, 'debug_mode') and self.debug_mode:
-            debug_prefix = f"{Fore.MAGENTA}[DEBUG]{Style.RESET_ALL}"
-            print(f"{debug_prefix} {message}")
-            try:
-                logging.debug(message)
-            except Exception as e:
-                print(f"Debug输出异常: {e}")
-                pass
-
 # ====================== 异常处理装饰器 ======================
 def handle_exceptions(func):
     def wrapper(*args, **kwargs):

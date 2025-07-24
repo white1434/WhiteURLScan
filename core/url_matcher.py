@@ -13,10 +13,11 @@ class URLMatcher(DebugMixin):
     danger_api_filtered = set()
     danger_api_lock = threading.Lock()
     
-    def __init__(self, config, scanner=None, output_lock=None):
+    def __init__(self, config, output_handler=None, external_url_manager=None, output_lock=None):
         self.config = config
         self.debug_mode = config.debug_mode  # 设置debug_mode属性
-        self.scanner = scanner  # 新增：可选scanner实例
+        self.output_handler = output_handler
+        self.external_url_manager = external_url_manager
         self.output_lock = output_lock if output_lock is not None else threading.Lock()
         self.visited_urls_global = set()
     
@@ -254,7 +255,7 @@ class URLMatcher(DebugMixin):
                         root_url = f"{parsed.scheme}://{parsed.netloc}/"
                          # !!! 暂时固定死拼接路径，后期可以优化
                         full_url = urllib.parse.urljoin(root_url, f"static/js/{url}") 
-                        if full_url not in UltimateURLScanner.visited_urls_global and 'chunk' in full_url:
+                        if full_url not in self.visited_urls_global and 'chunk' in full_url:
                             url_set.add(full_url)
                     
                     # self._process_url(url, base_url, url_set, f"Regex: {pattern}")
@@ -363,11 +364,8 @@ class URLMatcher(DebugMixin):
                 if url:
                     # 新增：外部URL收集逻辑
                     if not self.is_valid_domain(url):
-                        if self.scanner is not None:
-                            with self.scanner.external_urls_lock:
-                                if url not in self.scanner.external_urls:
-                                    self.scanner.external_urls.add(url)
-                                    self.scanner.external_url_queue.put(url)
+                        if self.external_url_manager:
+                            self.external_url_manager.add_external_url(url)
                         self._debug_print(f"外部URL已收集: {url}")
                         return  # 外部URL不加入主扫描集合
 

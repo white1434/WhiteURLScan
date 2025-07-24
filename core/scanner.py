@@ -20,6 +20,17 @@ import tldextract
 
 
 # ====================== 扫描核心模块 ======================
+class ExternalUrlManager:
+    def __init__(self):
+        self.external_urls = set()
+        self.external_url_queue = queue.Queue()
+        self.external_urls_lock = threading.Lock()
+    def add_external_url(self, url):
+        with self.external_urls_lock:
+            if url not in self.external_urls:
+                self.external_urls.add(url)
+                self.external_url_queue.put(url)
+
 class UltimateURLScanner(DebugMixin):
     # 全局共享的已访问URL集合和锁
     visited_urls_global = set()
@@ -93,17 +104,14 @@ class UltimateURLScanner(DebugMixin):
         self.duplicate_urls = set()
         self.url_request_count = {}
         self.out_of_domain_urls = []
-        self.external_urls = set()
-        self.external_urls_lock = threading.Lock()
-        self.external_url_queue = queue.Queue()
+        self.external_url_manager = ExternalUrlManager()
         self.external_results = []
         self.external_running = True
 
     def _init_components(self):
-        """初始化扫描组件"""
-        self.url_matcher = URLMatcher(self.config, scanner=self, output_lock=self.output_lock)
-        self.sensitive_detector = SensitiveDetector(self.config.sensitive_patterns, self.config.debug_mode)
         self.output_handler = OutputHandler(self.config, output_lock=self.output_lock)
+        self.url_matcher = URLMatcher(self.config, output_handler=self.output_handler, external_url_manager=self.external_url_manager, output_lock=self.output_lock)
+        self.sensitive_detector = SensitiveDetector(self.config.sensitive_patterns, self.config.debug_mode)
 
     def _check_request_limits(self):
         """检查请求限制，返回是否应该继续处理"""
@@ -704,7 +712,7 @@ class UltimateURLScanner(DebugMixin):
 
     def external_worker(self):
         """外部URL工作线程 - 增强错误处理"""
-        self._worker_loop(self.external_url_queue, self.external_results, self.lock, is_external=True)
+        self._worker_loop(self.external_url_manager.external_url_queue, self.external_results, self.lock, is_external=True)
 
     def start_scan(self):
         """开始扫描过程 - 增强错误处理"""
