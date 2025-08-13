@@ -270,7 +270,7 @@ class ScannerConfig(DebugMixin):
             'Slack Webhook': r'https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}',
             'Mailgun API密钥': r'\bkey-[0-9a-zA-Z]{32}\b',
             'Square访问令牌': r'\bsqOatp-[0-9A-Za-z\-_]{22}\b',
-            'Square OAuth密钥': r'\bsq0csp-[ 0-9A-Za-z\-_]{43}\b',
+            'Square OAuth密钥': r'\bsq0csp-[0-9A-Za-z\-_]{43}\b',
             'PayPal Braintree令牌': r'\baccess_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}\b',
             'Facebook访问令牌': r'\bEAACEdEose0cBA[0-9A-Za-z]+\b',
             
@@ -725,8 +725,6 @@ class URLMatcher(DebugMixin):
             r'[\'"`](/?DataInterface\\.do(?:\?[^\s\'"`]*)?)[\'"`]',  # 新增DataInterface.do路径
             # 新增: 匹配jQuery风格的调用 ($.get("entrance"))
             r'\$\.(?:get|post|ajax)\s*\(\s*[\'"`]([^\s\'"`]+)[\'"`]',          
-            # 新增: 匹配JSX/React路由 (如 <Route path="/admin">)
-            r'<Route\s+path=[\'"`]([^\s\'"`]+)[\'"`>',
             # 增强模板字符串匹配: 支持相对路径
             r'`(?:https?://[^`]+|/{1,2}[^`]+|\.{1,2}/[^`]+)`',
             # 新增: 匹配JS中的动态路由定义
@@ -845,14 +843,18 @@ class URLMatcher(DebugMixin):
             matches = re.findall(pattern, text_content, re.IGNORECASE)
             if self.config.debug_mode and matches:
                 self._debug_print(f"正则匹配模式 '{pattern}' 找到 {len(matches)} 个匹配")
-            
+            # print(matches)
             for match in matches:
                 # 处理可能的元组结果
                 url = self._extract_url_from_match(match)
                 if url:
                     # self._debug_print(f"处理匹配结果: {url}  匹配规则 -> {pattern} , base_url -> {base_url}")
-                    self._process_url(url, base_url, url_set, f"Regex: {pattern}")
+                    try:
+                        self._process_url(url, base_url, url_set, f"Regex: {pattern}")
+                    except Exception as e:
+                        self._debug_print(f"[_match_and_add]: 正则失败，{e}")
         except Exception as e:
+            # print("system====================",e, pattern, text_content, base_url)
             self._debug_print(f"URL匹配错误 (模式: {pattern}): {str(e)}")
     
     def _extract_url_from_match(self, match):
