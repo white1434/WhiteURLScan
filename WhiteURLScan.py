@@ -2673,9 +2673,14 @@ def _load_config():
             "max_urls": 10000,
             "smart_concatenation": True,
             "debug_mode": 0,
+            "is_duplicate": 0,
             "url_scope_mode": 0,
             "danger_filter_enabled": 1,
-            "danger_api_list": ["del","delete","insert","logout","loginout","remove","drop","shutdown","stop","poweroff","restart","rewrite","terminate","deactivate","halt","disable"]
+            "danger_api_list": ["del","delete","insert","logout","loginout","remove","drop","shutdown","stop","poweroff","restart","rewrite","terminate","deactivate","halt","disable"],
+            "custom_base_url": ["https://www.canopyu.com/"],
+            "path_route": ["/api/v1/user/login"],
+            "api_route": ["/api/v1/user/login"],
+            "fuzz": 0
         }
         if not os.path.exists(config_path):
             with open(config_path, 'w', encoding='utf-8') as f:
