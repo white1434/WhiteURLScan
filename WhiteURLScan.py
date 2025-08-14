@@ -388,25 +388,77 @@ class URLConcatenator(DebugMixin):
         ))
 
     def _process_parent_directory_url(self, base_url, relative_url):
-        """处理上级目录URL"""
+        """
+        处理上级目录URL
+        
+        Args:
+            base_url: 基础URL，如 http://example.com/admin/login.aspx
+            relative_url: 相对URL，如 ../scripts/jquery/jquery-1.11.2.min.js
+            
+        Returns:
+            拼接后的完整URL
+        """
+        # 解析基础URL
         base = urllib.parse.urlparse(base_url)
-        path_parts = base.path.split('/')
+        
+        # 获取基础URL的目录路径（去掉文件名）
+        base_path = base.path
+        if not base_path.endswith('/'):
+            # 如果不是以/结尾，说明是文件，需要获取其目录
+            path_parts = base_path.split('/')
+            if len(path_parts) > 1:
+                base_path = '/'.join(path_parts[:-1])
+            else:
+                base_path = ''
+        
+        # 确保路径以/开头
+        if base_path and not base_path.startswith('/'):
+            base_path = '/' + base_path
+        
+        # 将基础路径分割成部分
+        base_parts = [part for part in base_path.split('/') if part]
+        
+        # 处理相对URL中的../和./
         rel_parts = relative_url.split('/')
         back_count = 0
         new_parts = []
+        
         for part in rel_parts:
             if part == '..':
                 back_count += 1
+            elif part == '.' or part == '':
+                # 忽略当前目录和空字符串
+                pass
             else:
                 new_parts.append(part)
-        if len(path_parts) > back_count:
-            clean_parts = [p for p in path_parts[:len(path_parts)-back_count] if p]
-            new_path = '/'.join(clean_parts) + '/' + '/'.join(new_parts)
+        
+        # 计算新的基础路径（回退指定级数）
+        if back_count > 0:
+            if len(base_parts) >= back_count:
+                # 回退指定级数
+                remaining_parts = base_parts[:-back_count]
+                new_base_path = '/' + '/'.join(remaining_parts) if remaining_parts else '/'
+            else:
+                # 如果回退次数超过路径深度，则回到根目录
+                new_base_path = '/'
         else:
-            new_path = '/' + '/'.join(new_parts)
-        if new_path.startswith('//'):
-            new_path = new_path[1:]
-        return f"{base.scheme}://{base.netloc}{new_path}"
+            # 没有回退，保持原路径
+            new_base_path = '/' + '/'.join(base_parts) if base_parts else '/'
+        
+        # 添加新的路径部分
+        if new_parts:
+            if new_base_path.endswith('/'):
+                final_path = new_base_path + '/'.join(new_parts)
+            else:
+                final_path = new_base_path + '/' + '/'.join(new_parts)
+        else:
+            final_path = new_base_path
+        
+        # 清理双斜杠
+        final_path = re.sub(r'/{2,}', '/', final_path)
+        
+        # 构建完整URL
+        return f"{base.scheme}://{base.netloc}{final_path}"
 
     def api_concatenation(self):
         """API路由拼接"""
@@ -1885,11 +1937,10 @@ class UltimateURLScanner(DebugMixin):
             
             # 检测响应内容的编码
             raw_content = response.content
-            self._debug_print(f"响应内容长度: {len(raw_content)} 字节")
+            # self._debug_print(f"响应内容长度: {len(raw_content)} 字节")
             
             detected_encoding = chardet.detect(raw_content)['encoding']
-            self._debug_print(f"chardet检测到的编码: {detected_encoding}")
-            self._debug_print(f"chardet检测可信度: {chardet.detect(raw_content)['confidence']}")
+            self._debug_print(f"chardet检测到的编码: {detected_encoding}, chardet检测可信度: {chardet.detect(raw_content)['confidence']}")
             
             # 尝试使用不同编码解码
             encodings_to_try = ['utf-8', 'gbk', 'gb2312', 'utf-16']
@@ -1903,7 +1954,7 @@ class UltimateURLScanner(DebugMixin):
                 try:
                     content = raw_content.decode(encoding)
                     soup = BeautifulSoup(content, 'html.parser')
-                    title = soup.title.string.strip() if soup.title else '无标题'
+                    title = soup.title.string.strip() if soup.title else ''
                     # print(f"使用 {encoding} 解码的标题: {title}")
                     
                     # 保存最佳结果
@@ -1918,7 +1969,8 @@ class UltimateURLScanner(DebugMixin):
             best_title = str(best_title).strip().replace('\n', '').replace('\r', '')
             if self.config.debug_mode:
                 self._debug_print(f"[_build_result] 提取到标题: {best_title[:50]}...")
-            return best_title
+
+            return best_title if best_title else ''
 
         except Exception as e:
             # print(f"[_build_result] 标题提取失败: {e}")
@@ -2554,7 +2606,7 @@ def main():
 def _print_program_info():
     """打印程序信息"""
     print(f"{Fore.YELLOW}=============================================={Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}=== WhiteURLScan v1.7.3 ===")
+    print(f"{Fore.YELLOW}=== WhiteURLScan v1.7.4 ===")
     print(f"{Fore.YELLOW}=== BY: white1434  GitHub: https://github.com/white1434/WhiteURLScan")
     print(f"{Fore.YELLOW}=== 重复的URL不会重复扫描, 结果返回相同的URL不会重复展示")
     print(f"{Fore.CYAN}=== 所有输出将同时记录到 results/output.out 文件中")

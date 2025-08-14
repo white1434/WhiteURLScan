@@ -1,6 +1,5 @@
 results/
+.cursor/
 url.txt
-debug.log
 config.json
 __pycache__/
-webdriverFind.py
